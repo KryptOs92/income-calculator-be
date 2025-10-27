@@ -10,7 +10,10 @@ const docsWarmup = async app => {
   };
 
   try {
-    await request(app).post("/api/auth/register").send(sampleUser).set("Content-Type", "application/json");
+    await request(app)
+      .post("/api/auth/register")
+      .set("Content-Type", "application/json")
+      .send(sampleUser);
   } catch (err) {
     console.warn("Doc warmup register failed (expected in repeated runs):", err.message);
   }
@@ -18,8 +21,8 @@ const docsWarmup = async app => {
   try {
     await request(app)
       .post("/api/auth/login")
-      .send({ email: sampleUser.email, password: sampleUser.password })
-      .set("Content-Type", "application/json");
+      .set("Content-Type", "application/json")
+      .send({ email: sampleUser.email, password: sampleUser.password });
   } catch (err) {
     console.warn("Doc warmup login failed:", err.message);
   }
