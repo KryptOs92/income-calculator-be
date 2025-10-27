@@ -6,12 +6,15 @@ const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
-export const register = async (req, res) => {
+export const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
     const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return res.status(400).json({ message: "Email già registrata" });
+    if (existing) {
+      res.status(400).json({ message: "Email già registrata" });
+      return next();
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -19,27 +22,37 @@ export const register = async (req, res) => {
     });
 
     res.status(201).json({ message: "Utente registrato", user });
+    return next();
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Errore durante la registrazione" });
+    return next();
   }
 };
 
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) return res.status(401).json({ message: "Credenziali errate" });
+    if (!user) {
+      res.status(401).json({ message: "Credenziali errate" });
+      return next();
+    }
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ message: "Credenziali errate" });
+    if (!valid) {
+      res.status(401).json({ message: "Credenziali errate" });
+      return next();
+    }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
 
     res.json({ token });
+    return next();
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Errore durante il login" });
+    return next();
   }
 };

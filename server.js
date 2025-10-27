@@ -1,34 +1,30 @@
-import express from "express";
-import mysql from "mysql2";
+// server.js
 import dotenv from "dotenv";
+import "./db.js"; // se vuoi tenere qui la connessione MySQL
+import app from "./app.js";
 
 dotenv.config();
-const app = express();
 
-// Connessione al database
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
-});
+const PORT = process.env.PORT || 3000;
 
-// Test connessione
-db.connect(err => {
-  if (err) {
-    console.error("❌ Errore di connessione al database:", err);
-  } else {
-    console.log("✅ Connessione MySQL riuscita!");
+const warmupDocsIfNeeded = async () => {
+  if (process.env.NODE_ENV === "production") return;
+  try {
+    const { default: docsWarmup } = await import("./utils/docsWarmup.js");
+    await docsWarmup(app);
+  } catch (err) {
+    console.warn("Impossibile generare automaticamente gli esempi per le API docs:", err.message);
   }
-});
+};
 
-// Route base
-app.get("/", (req, res) => {
-  res.send("Server Express connesso a MySQL!");
-});
+const startServer = async () => {
+  await warmupDocsIfNeeded();
 
-// Avvio server
-app.listen(process.env.PORT, () => {
-  console.log(`🚀 Server in ascolto su porta ${process.env.PORT}`);
+  app.listen(PORT, () => {
+    console.log(`Server in ascolto su porta ${PORT}`);
+  });
+};
+
+startServer().catch(err => {
+  console.error("Errore durante l'avvio del server:", err);
 });
