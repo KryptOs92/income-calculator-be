@@ -14,10 +14,12 @@ app._router = app.router; // ensure compatibility with libs expecting Express 4 
 const swaggerHost = process.env.SWAGGER_HOST || `localhost:${process.env.PORT || 3000}`;
 expressOasGenerator.handleResponses(app, {
   predefinedSpec: spec => {
-    spec.host = swaggerHost;
-    spec.schemes = spec.schemes || ["http"];
+    spec.openapi = "3.0.0";
+    delete spec.swagger;
+    spec.servers = spec.servers || [{ url: `http://${swaggerHost}` }];
     spec.paths = spec.paths || {};
     spec.components = spec.components || {};
+    spec.components.schemas = spec.components.schemas || {};
     spec.components.securitySchemes = spec.components.securitySchemes || {
       bearerAuth: {
         type: "http",
@@ -30,6 +32,14 @@ expressOasGenerator.handleResponses(app, {
       spec.paths[path] = spec.paths[path] || {};
       spec.paths[path][method] = spec.paths[path][method] || { responses: {} };
       return spec.paths[path][method];
+    };
+
+    const ensureSchema = (name, schema) => {
+      spec.components.schemas = spec.components.schemas || {};
+      if (!spec.components.schemas[name]) {
+        spec.components.schemas[name] = schema;
+      }
+      return { $ref: "#/components/schemas/" + name };
     };
 
     const setRequestBody = (operation, required, properties) => {
@@ -47,8 +57,29 @@ expressOasGenerator.handleResponses(app, {
       };
     };
 
+    const setJsonResponse = (operation, status, schemaRef, description = "Success") => {
+      operation.responses = operation.responses || {};
+      operation.responses[status] = {
+        description,
+        content: {
+          "application/json": {
+            schema: schemaRef || { type: "object" },
+          },
+        },
+      };
+    };
+
     const setSecurity = operation => {
       operation.security = [{ bearerAuth: [] }];
+      operation.responses = operation.responses || {};
+      operation.responses["401"] = operation.responses["401"] || {
+        description: "Unauthorized",
+        content: {
+          "application/json": {
+            schema: errorSchema,
+          },
+        },
+      };
     };
 
     const setTag = (operation, tagName) => {
@@ -59,6 +90,37 @@ expressOasGenerator.handleResponses(app, {
       operation.tags = [tagName];
     };
 
+    const errorSchema = ensureSchema("ErrorResponse", {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "Invalid credentials" },
+      },
+    });
+
+    const userSummarySchema = ensureSchema("UserSummary", {
+      type: "object",
+      properties: {
+        id: { type: "integer", example: 1 },
+        name: { type: "string", example: "John Doe" },
+        email: { type: "string", example: "john@example.com" },
+      },
+    });
+
+    const registerSchema = ensureSchema("RegisterResponse", {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "User created" },
+        user: userSummarySchema,
+      },
+    });
+
+    const loginSchema = ensureSchema("LoginResponse", {
+      type: "object",
+      properties: {
+        token: { type: "string", example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+      },
+    });
+
     const registerOperation = ensureOperation("/api/auth/register", "post");
     setRequestBody(registerOperation, ["name", "email", "password"], {
       name: { type: "string", example: "John Doe" },
@@ -66,6 +128,11 @@ expressOasGenerator.handleResponses(app, {
       password: { type: "string", format: "password", example: "Password123!" },
     });
     setTag(registerOperation, "Auth");
+    setJsonResponse(registerOperation, "201", registerSchema, "Created");
+    registerOperation.responses["400"] = {
+      description: "Bad Request",
+      content: { "application/json": { schema: errorSchema } },
+    };
 
     const loginOperation = ensureOperation("/api/auth/login", "post");
     setRequestBody(loginOperation, ["email", "password"], {
@@ -73,6 +140,11 @@ expressOasGenerator.handleResponses(app, {
       password: { type: "string", format: "password", example: "Password123!" },
     });
     setTag(loginOperation, "Auth");
+    setJsonResponse(loginOperation, "200", loginSchema, "Authenticated");
+    loginOperation.responses["400"] = {
+      description: "Bad Request",
+      content: { "application/json": { schema: errorSchema } },
+    };
 
     const secureOperations = [
       ["/api/cryptos", "get"],
