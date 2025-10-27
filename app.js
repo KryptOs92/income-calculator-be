@@ -1,6 +1,11 @@
 import express from "express";
 import expressOasGenerator from "express-oas-generator";
 import authRoutes from "./routes/auth.routes.js";
+import cryptoRoutes from "./routes/crypto.routes.js";
+import cryptoAddressRoutes from "./routes/cryptoAddress.routes.js";
+import cryptoInflowRoutes from "./routes/cryptoInflow.routes.js";
+import serverNodeRoutes from "./routes/serverNode.routes.js";
+import energyRateRoutes from "./routes/energyRate.routes.js";
 import { authenticate } from "./middlewares/auth.middlewares.js";
 
 const app = express();
@@ -12,11 +17,19 @@ expressOasGenerator.handleResponses(app, {
     spec.host = swaggerHost;
     spec.schemes = spec.schemes || ["http"];
     spec.paths = spec.paths || {};
+    spec.components = spec.components || {};
+    spec.components.securitySchemes = spec.components.securitySchemes || {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+    };
 
-    const ensureOperation = path => {
+    const ensureOperation = (path, method) => {
       spec.paths[path] = spec.paths[path] || {};
-      spec.paths[path].post = spec.paths[path].post || { responses: {} };
-      return spec.paths[path].post;
+      spec.paths[path][method] = spec.paths[path][method] || { responses: {} };
+      return spec.paths[path][method];
     };
 
     const setRequestBody = (operation, required, properties) => {
@@ -34,17 +47,133 @@ expressOasGenerator.handleResponses(app, {
       };
     };
 
-    const registerOperation = ensureOperation("/api/auth/register");
+    const setSecurity = operation => {
+      operation.security = [{ bearerAuth: [] }];
+    };
+
+    const registerOperation = ensureOperation("/api/auth/register", "post");
     setRequestBody(registerOperation, ["name", "email", "password"], {
       name: { type: "string", example: "John Doe" },
       email: { type: "string", format: "email", example: "john@example.com" },
       password: { type: "string", format: "password", example: "Password123!" },
     });
 
-    const loginOperation = ensureOperation("/api/auth/login");
+    const loginOperation = ensureOperation("/api/auth/login", "post");
     setRequestBody(loginOperation, ["email", "password"], {
       email: { type: "string", format: "email", example: "john@example.com" },
       password: { type: "string", format: "password", example: "Password123!" },
+    });
+
+    const secureOperations = [
+      ["/api/cryptos", "get"],
+      ["/api/cryptos", "post"],
+      ["/api/cryptos/{id}", "get"],
+      ["/api/cryptos/{id}", "put"],
+      ["/api/cryptos/{id}", "delete"],
+      ["/api/crypto-addresses", "get"],
+      ["/api/crypto-addresses", "post"],
+      ["/api/crypto-addresses/{id}", "get"],
+      ["/api/crypto-addresses/{id}", "put"],
+      ["/api/crypto-addresses/{id}", "delete"],
+      ["/api/crypto-inflows", "get"],
+      ["/api/crypto-inflows", "post"],
+      ["/api/crypto-inflows/{id}", "get"],
+      ["/api/crypto-inflows/{id}", "put"],
+      ["/api/crypto-inflows/{id}", "delete"],
+      ["/api/server-nodes", "get"],
+      ["/api/server-nodes", "post"],
+      ["/api/server-nodes/{id}", "get"],
+      ["/api/server-nodes/{id}", "put"],
+      ["/api/server-nodes/{id}", "delete"],
+      ["/api/energy-rates", "get"],
+      ["/api/energy-rates", "post"],
+      ["/api/energy-rates/{id}", "get"],
+      ["/api/energy-rates/{id}", "put"],
+      ["/api/energy-rates/{id}", "delete"],
+    ];
+
+    secureOperations.forEach(([path, method]) => {
+      const op = ensureOperation(path, method);
+      setSecurity(op);
+    });
+
+    const cryptoCreate = ensureOperation("/api/cryptos", "post");
+    setRequestBody(cryptoCreate, ["name"], {
+      name: { type: "string", example: "Bitcoin" },
+      symbol: { type: "string", example: "BTC" },
+      logoUrl: { type: "string", format: "uri", example: "https://cdn.example/btc.png" },
+    });
+
+    const cryptoUpdate = ensureOperation("/api/cryptos/{id}", "put");
+    setRequestBody(cryptoUpdate, [], {
+      name: { type: "string", example: "Bitcoin" },
+      symbol: { type: "string", example: "BTC" },
+      logoUrl: { type: "string", format: "uri", example: "https://cdn.example/btc.png" },
+    });
+
+    const addressCreate = ensureOperation("/api/crypto-addresses", "post");
+    setRequestBody(addressCreate, ["cryptoId", "address"], {
+      cryptoId: { type: "integer", example: 1 },
+      address: { type: "string", example: "0x1234abcd" },
+      label: { type: "string", example: "Cold wallet" },
+    });
+
+    const addressUpdate = ensureOperation("/api/crypto-addresses/{id}", "put");
+    setRequestBody(addressUpdate, [], {
+      label: { type: "string", example: "My Ledger" },
+    });
+
+    const inflowCreate = ensureOperation("/api/crypto-inflows", "post");
+    setRequestBody(inflowCreate, ["addressId", "amount"], {
+      addressId: { type: "integer", example: 42 },
+      amount: { type: "string", example: "0.5" },
+      txHash: { type: "string", example: "0xabc123" },
+      detectedAt: { type: "string", format: "date-time" },
+      fiatValue: { type: "string", example: "1200.50" },
+      fiatCurrency: { type: "string", example: "USD" },
+      priceSource: { type: "string", example: "coinmarketcap" },
+      priceTimestamp: { type: "string", format: "date-time" },
+    });
+
+    const inflowUpdate = ensureOperation("/api/crypto-inflows/{id}", "put");
+    setRequestBody(inflowUpdate, [], {
+      amount: { type: "string", example: "0.75" },
+      detectedAt: { type: "string", format: "date-time" },
+      fiatValue: { type: "string", example: "1500.00" },
+      fiatCurrency: { type: "string", example: "USD" },
+      priceSource: { type: "string", example: "coinmarketcap" },
+      priceTimestamp: { type: "string", format: "date-time" },
+    });
+
+    const nodeCreate = ensureOperation("/api/server-nodes", "post");
+    setRequestBody(nodeCreate, ["name", "powerKw", "dailyUptimeSeconds"], {
+      name: { type: "string", example: "Node A" },
+      powerKw: { type: "number", example: 1.2 },
+      dailyUptimeSeconds: { type: "integer", example: 36000 },
+    });
+
+    const nodeUpdate = ensureOperation("/api/server-nodes/{id}", "put");
+    setRequestBody(nodeUpdate, [], {
+      name: { type: "string", example: "Node A" },
+      powerKw: { type: "number", example: 1.4 },
+      dailyUptimeSeconds: { type: "integer", example: 40000 },
+    });
+
+    const rateCreate = ensureOperation("/api/energy-rates", "post");
+    setRequestBody(rateCreate, ["serverNodeId", "costPerKwh"], {
+      serverNodeId: { type: "integer", example: 7 },
+      costPerKwh: { type: "string", example: "0.23" },
+      currency: { type: "string", example: "EUR" },
+      effectiveFrom: { type: "string", format: "date-time" },
+      effectiveTo: { type: "string", format: "date-time" },
+    });
+
+    const rateUpdate = ensureOperation("/api/energy-rates/{id}", "put");
+    setRequestBody(rateUpdate, [], {
+      costPerKwh: { type: "string", example: "0.25" },
+      currency: { type: "string", example: "EUR" },
+      effectiveFrom: { type: "string", format: "date-time" },
+      effectiveTo: { type: "string", format: "date-time" },
     });
 
     return spec;
@@ -53,6 +182,11 @@ expressOasGenerator.handleResponses(app, {
 app.use(express.json());
 
 app.use(authRoutes);
+app.use(cryptoRoutes);
+app.use(cryptoAddressRoutes);
+app.use(cryptoInflowRoutes);
+app.use(serverNodeRoutes);
+app.use(energyRateRoutes);
 
 app.get("/api-docs", (_req, res) => {
   res.redirect("/api-docs/v3");
