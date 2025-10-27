@@ -10,12 +10,10 @@ import { authenticate } from "../middlewares/auth.middlewares.js";
 
 const router = express.Router();
 
-router.use(authenticate);
-
-router.get("/api/energy-rates", listEnergyRates);
-router.get("/api/energy-rates/:id", getEnergyRate);
-router.post("/api/energy-rates", createEnergyRate);
-router.put("/api/energy-rates/:id", updateEnergyRate);
-router.delete("/api/energy-rates/:id", deleteEnergyRate);
+router.get("/api/energy-rates", authenticate, listEnergyRates);
+router.get("/api/energy-rates/:id", authenticate, getEnergyRate);
+router.post("/api/energy-rates", authenticate, createEnergyRate);
+router.put("/api/energy-rates/:id", authenticate, updateEnergyRate);
+router.delete("/api/energy-rates/:id", authenticate, deleteEnergyRate);
 
 export default router;

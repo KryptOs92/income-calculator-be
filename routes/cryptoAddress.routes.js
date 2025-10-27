@@ -10,12 +10,10 @@ import { authenticate } from "../middlewares/auth.middlewares.js";
 
 const router = express.Router();
 
-router.use(authenticate);
-
-router.get("/api/crypto-addresses", listCryptoAddresses);
-router.get("/api/crypto-addresses/:id", getCryptoAddress);
-router.post("/api/crypto-addresses", createCryptoAddress);
-router.put("/api/crypto-addresses/:id", updateCryptoAddress);
-router.delete("/api/crypto-addresses/:id", deleteCryptoAddress);
+router.get("/api/crypto-addresses", authenticate, listCryptoAddresses);
+router.get("/api/crypto-addresses/:id", authenticate, getCryptoAddress);
+router.post("/api/crypto-addresses", authenticate, createCryptoAddress);
+router.put("/api/crypto-addresses/:id", authenticate, updateCryptoAddress);
+router.delete("/api/crypto-addresses/:id", authenticate, deleteCryptoAddress);
 
 export default router;

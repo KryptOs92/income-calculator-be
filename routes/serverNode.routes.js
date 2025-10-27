@@ -10,12 +10,10 @@ import { authenticate } from "../middlewares/auth.middlewares.js";
 
 const router = express.Router();
 
-router.use(authenticate);
-
-router.get("/api/server-nodes", listServerNodes);
-router.get("/api/server-nodes/:id", getServerNode);
-router.post("/api/server-nodes", createServerNode);
-router.put("/api/server-nodes/:id", updateServerNode);
-router.delete("/api/server-nodes/:id", deleteServerNode);
+router.get("/api/server-nodes", authenticate, listServerNodes);
+router.get("/api/server-nodes/:id", authenticate, getServerNode);
+router.post("/api/server-nodes", authenticate, createServerNode);
+router.put("/api/server-nodes/:id", authenticate, updateServerNode);
+router.delete("/api/server-nodes/:id", authenticate, deleteServerNode);
 
 export default router;
