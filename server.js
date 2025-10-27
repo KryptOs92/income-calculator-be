@@ -18,7 +18,7 @@ const warmupDocsIfNeeded = async () => {
 };
 
 const startServer = async () => {
-  await warmupDocsIfNeeded();
+  //await warmupDocsIfNeeded();
 
   app.listen(PORT, () => {
     console.log(`Server in ascolto su porta ${PORT}`);

@@ -19,4 +19,69 @@ model User {
   email     String   @unique
   password  String
   createdAt DateTime @default(now())
+  cryptoAddresses UserCryptoAddress[]
+  serverNodes      ServerNode[]
+}
+
+model Crypto {
+  id        Int      @id @default(autoincrement())
+  name      String
+  symbol    String?  @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  addresses UserCryptoAddress[]
+}
+
+model UserCryptoAddress {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  cryptoId  Int
+  label     String?
+  address   String   @unique
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crypto Crypto @relation(fields: [cryptoId], references: [id], onDelete: Cascade)
+  inflows CryptoInflow[]
+}
+
+model CryptoInflow {
+  id             Int       @id @default(autoincrement())
+  addressId      Int
+  txHash         String?   @unique
+  amount         Decimal   @db.Decimal(65, 30)
+  detectedAt     DateTime  @default(now())
+  fiatValue      Decimal?  @db.Decimal(65, 30)
+  fiatCurrency   String?   @default("USD")
+  priceSource    String?
+  priceTimestamp DateTime?
+
+  address UserCryptoAddress @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  @@index([addressId, detectedAt])
+}
+
+model ServerNode {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  name               String
+  powerKw            Float
+  dailyUptimeSeconds Int
+  createdAt          DateTime  @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  energyRates EnergyRate[]
+}
+
+model EnergyRate {
+  id            Int      @id @default(autoincrement())
+  serverNodeId  Int
+  costPerKwh    Decimal  @db.Decimal(10, 4)
+  currency      String   @default("EUR")
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+
+  serverNode ServerNode @relation(fields: [serverNodeId], references: [id], onDelete: Cascade)
+
+  @@index([serverNodeId, effectiveFrom])
 }
