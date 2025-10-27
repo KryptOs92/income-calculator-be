@@ -51,18 +51,28 @@ expressOasGenerator.handleResponses(app, {
       operation.security = [{ bearerAuth: [] }];
     };
 
+    const setTag = (operation, tagName) => {
+      spec.tags = spec.tags || [];
+      if (!spec.tags.some(tag => tag.name === tagName)) {
+        spec.tags.push({ name: tagName });
+      }
+      operation.tags = [tagName];
+    };
+
     const registerOperation = ensureOperation("/api/auth/register", "post");
     setRequestBody(registerOperation, ["name", "email", "password"], {
       name: { type: "string", example: "John Doe" },
       email: { type: "string", format: "email", example: "john@example.com" },
       password: { type: "string", format: "password", example: "Password123!" },
     });
+    setTag(registerOperation, "Auth");
 
     const loginOperation = ensureOperation("/api/auth/login", "post");
     setRequestBody(loginOperation, ["email", "password"], {
       email: { type: "string", format: "email", example: "john@example.com" },
       password: { type: "string", format: "password", example: "Password123!" },
     });
+    setTag(loginOperation, "Auth");
 
     const secureOperations = [
       ["/api/cryptos", "get"],
@@ -92,9 +102,26 @@ expressOasGenerator.handleResponses(app, {
       ["/api/energy-rates/{id}", "delete"],
     ];
 
+    const tagMap = {
+      "/api/cryptos": "Cryptos",
+      "/api/cryptos/{id}": "Cryptos",
+      "/api/crypto-addresses": "Crypto Addresses",
+      "/api/crypto-addresses/{id}": "Crypto Addresses",
+      "/api/crypto-inflows": "Crypto Inflows",
+      "/api/crypto-inflows/{id}": "Crypto Inflows",
+      "/api/server-nodes": "Server Nodes",
+      "/api/server-nodes/{id}": "Server Nodes",
+      "/api/energy-rates": "Energy Rates",
+      "/api/energy-rates/{id}": "Energy Rates",
+    };
+
     secureOperations.forEach(([path, method]) => {
       const op = ensureOperation(path, method);
       setSecurity(op);
+      const tagName = tagMap[path];
+      if (tagName) {
+        setTag(op, tagName);
+      }
     });
 
     const cryptoCreate = ensureOperation("/api/cryptos", "post");
@@ -103,6 +130,7 @@ expressOasGenerator.handleResponses(app, {
       symbol: { type: "string", example: "BTC" },
       logoUrl: { type: "string", format: "uri", example: "https://cdn.example/btc.png" },
     });
+    setTag(cryptoCreate, "Cryptos");
 
     const cryptoUpdate = ensureOperation("/api/cryptos/{id}", "put");
     setRequestBody(cryptoUpdate, [], {
@@ -110,6 +138,7 @@ expressOasGenerator.handleResponses(app, {
       symbol: { type: "string", example: "BTC" },
       logoUrl: { type: "string", format: "uri", example: "https://cdn.example/btc.png" },
     });
+    setTag(cryptoUpdate, "Cryptos");
 
     const addressCreate = ensureOperation("/api/crypto-addresses", "post");
     setRequestBody(addressCreate, ["cryptoId", "address"], {
@@ -117,11 +146,13 @@ expressOasGenerator.handleResponses(app, {
       address: { type: "string", example: "0x1234abcd" },
       label: { type: "string", example: "Cold wallet" },
     });
+    setTag(addressCreate, "Crypto Addresses");
 
     const addressUpdate = ensureOperation("/api/crypto-addresses/{id}", "put");
     setRequestBody(addressUpdate, [], {
       label: { type: "string", example: "My Ledger" },
     });
+    setTag(addressUpdate, "Crypto Addresses");
 
     const inflowCreate = ensureOperation("/api/crypto-inflows", "post");
     setRequestBody(inflowCreate, ["addressId", "amount"], {
@@ -134,6 +165,7 @@ expressOasGenerator.handleResponses(app, {
       priceSource: { type: "string", example: "coinmarketcap" },
       priceTimestamp: { type: "string", format: "date-time" },
     });
+    setTag(inflowCreate, "Crypto Inflows");
 
     const inflowUpdate = ensureOperation("/api/crypto-inflows/{id}", "put");
     setRequestBody(inflowUpdate, [], {
@@ -144,6 +176,7 @@ expressOasGenerator.handleResponses(app, {
       priceSource: { type: "string", example: "coinmarketcap" },
       priceTimestamp: { type: "string", format: "date-time" },
     });
+    setTag(inflowUpdate, "Crypto Inflows");
 
     const nodeCreate = ensureOperation("/api/server-nodes", "post");
     setRequestBody(nodeCreate, ["name", "powerKw", "dailyUptimeSeconds"], {
@@ -151,6 +184,7 @@ expressOasGenerator.handleResponses(app, {
       powerKw: { type: "number", example: 1.2 },
       dailyUptimeSeconds: { type: "integer", example: 36000 },
     });
+    setTag(nodeCreate, "Server Nodes");
 
     const nodeUpdate = ensureOperation("/api/server-nodes/{id}", "put");
     setRequestBody(nodeUpdate, [], {
@@ -158,6 +192,7 @@ expressOasGenerator.handleResponses(app, {
       powerKw: { type: "number", example: 1.4 },
       dailyUptimeSeconds: { type: "integer", example: 40000 },
     });
+    setTag(nodeUpdate, "Server Nodes");
 
     const rateCreate = ensureOperation("/api/energy-rates", "post");
     setRequestBody(rateCreate, ["serverNodeId", "costPerKwh"], {
@@ -167,6 +202,7 @@ expressOasGenerator.handleResponses(app, {
       effectiveFrom: { type: "string", format: "date-time" },
       effectiveTo: { type: "string", format: "date-time" },
     });
+    setTag(rateCreate, "Energy Rates");
 
     const rateUpdate = ensureOperation("/api/energy-rates/{id}", "put");
     setRequestBody(rateUpdate, [], {
@@ -175,6 +211,7 @@ expressOasGenerator.handleResponses(app, {
       effectiveFrom: { type: "string", format: "date-time" },
       effectiveTo: { type: "string", format: "date-time" },
     });
+    setTag(rateUpdate, "Energy Rates");
 
     return spec;
   },
