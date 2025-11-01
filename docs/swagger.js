@@ -153,6 +153,19 @@ export const initSwaggerDocs = app => {
         },
       });
 
+      const ensurePathParameter = (operation, name, schema, description) => {
+        operation.parameters = operation.parameters || [];
+        if (!operation.parameters.some(param => param.in === "path" && param.name === name)) {
+          operation.parameters.push({
+            name,
+            in: "path",
+            required: true,
+            schema,
+            description,
+          });
+        }
+      };
+
       const registerOperation = ensureOperation("/api/auth/register", "post");
       setRequestBody(registerOperation, ["name", "email", "password"], {
         name: { type: "string", example: "John Doe" },
@@ -176,6 +189,63 @@ export const initSwaggerDocs = app => {
       loginOperation.responses["400"] = {
         description: "Bad Request",
         content: { "application/json": { schema: errorSchema } },
+      };
+
+      const cryptoSchema = ensureSchema("Crypto", {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 1 },
+          name: { type: "string", example: "Bitcoin" },
+          symbol: { type: "string", example: "BTC" },
+          logoUrl: {
+            type: "string",
+            format: "uri",
+            example: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+          },
+          createdAt: {
+            type: "string",
+            format: "date-time",
+            example: "2024-01-01T12:00:00.000Z",
+          },
+        },
+      });
+
+      const cryptoListSchema = ensureSchema("CryptoList", {
+        type: "array",
+        items: cryptoSchema,
+      });
+
+      const cryptoPayloadProperties = {
+        name: { type: "string", example: "Bitcoin" },
+        symbol: { type: "string", example: "BTC" },
+        logoUrl: {
+          type: "string",
+          format: "uri",
+          example: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+        },
+      };
+
+      const listCryptosOperation = ensureOperation("/api/cryptos", "get");
+      setJsonResponse(listCryptosOperation, "200", cryptoListSchema, "List of cryptocurrencies");
+
+      const getCryptoOperation = ensureOperation("/api/cryptos/{id}", "get");
+      ensurePathParameter(getCryptoOperation, "id", { type: "integer" }, "Crypto identifier");
+      setJsonResponse(getCryptoOperation, "200", cryptoSchema, "Cryptocurrency details");
+
+      const createCryptoOperation = ensureOperation("/api/cryptos", "post");
+      setRequestBody(createCryptoOperation, ["name"], cryptoPayloadProperties);
+      setJsonResponse(createCryptoOperation, "201", cryptoSchema, "Cryptocurrency created");
+
+      const updateCryptoOperation = ensureOperation("/api/cryptos/{id}", "put");
+      ensurePathParameter(updateCryptoOperation, "id", { type: "integer" }, "Crypto identifier");
+      setRequestBody(updateCryptoOperation, [], cryptoPayloadProperties);
+      setJsonResponse(updateCryptoOperation, "200", cryptoSchema, "Cryptocurrency updated");
+
+      const deleteCryptoOperation = ensureOperation("/api/cryptos/{id}", "delete");
+      ensurePathParameter(deleteCryptoOperation, "id", { type: "integer" }, "Crypto identifier");
+      deleteCryptoOperation.responses = deleteCryptoOperation.responses || {};
+      deleteCryptoOperation.responses["204"] = {
+        description: "Cryptocurrency deleted",
       };
 
       secureOperations.forEach(([path, method]) => {
