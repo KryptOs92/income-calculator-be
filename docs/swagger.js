@@ -135,6 +135,7 @@ export const initSwaggerDocs = app => {
           id: { type: "integer", example: 1 },
           name: { type: "string", example: "John Doe" },
           email: { type: "string", example: "john@example.com" },
+          emailVerified: { type: "boolean", example: false },
         },
       });
 
@@ -150,6 +151,13 @@ export const initSwaggerDocs = app => {
         type: "object",
         properties: {
           token: { type: "string", example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+        },
+      });
+
+      const messageSchema = ensureSchema("MessageResponse", {
+        type: "object",
+        properties: {
+          message: { type: "string", example: "Operation completed" },
         },
       });
 
@@ -187,6 +195,46 @@ export const initSwaggerDocs = app => {
       setTag(loginOperation, "Auth");
       setJsonResponse(loginOperation, "200", loginSchema, "Authenticated");
       loginOperation.responses["400"] = {
+        description: "Bad Request",
+        content: { "application/json": { schema: errorSchema } },
+      };
+
+      const verifyEmailOperation = ensureOperation("/api/auth/verify-email", "get");
+      verifyEmailOperation.parameters = [
+        {
+          name: "token",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+          description: "Token ricevuto via email",
+        },
+      ];
+      setTag(verifyEmailOperation, "Auth");
+      setJsonResponse(verifyEmailOperation, "200", messageSchema, "Email verified");
+      verifyEmailOperation.responses["400"] = {
+        description: "Bad Request",
+        content: { "application/json": { schema: errorSchema } },
+      };
+
+      const requestResetOperation = ensureOperation("/api/auth/request-password-reset", "post");
+      setRequestBody(requestResetOperation, ["email"], {
+        email: { type: "string", format: "email", example: "john@example.com" },
+      });
+      setTag(requestResetOperation, "Auth");
+      setJsonResponse(requestResetOperation, "200", messageSchema, "Reset instructions sent");
+      requestResetOperation.responses["400"] = {
+        description: "Bad Request",
+        content: { "application/json": { schema: errorSchema } },
+      };
+
+      const resetPasswordOperation = ensureOperation("/api/auth/reset-password", "post");
+      setRequestBody(resetPasswordOperation, ["token", "password"], {
+        token: { type: "string", example: "7f6658b0d..." },
+        password: { type: "string", format: "password", example: "NewPassword123!" },
+      });
+      setTag(resetPasswordOperation, "Auth");
+      setJsonResponse(resetPasswordOperation, "200", messageSchema, "Password updated");
+      resetPasswordOperation.responses["400"] = {
         description: "Bad Request",
         content: { "application/json": { schema: errorSchema } },
       };
