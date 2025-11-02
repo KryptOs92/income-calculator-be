@@ -3,13 +3,13 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import { sendMail } from "../lib/email.js";
+import {
+  buildAccountVerificationEmail,
+  buildPasswordResetEmail,
+} from "../lib/emailTemplates.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-const EMAIL_VERIFICATION_URL =
-  process.env.EMAIL_VERIFICATION_URL || `${APP_BASE_URL}/api/auth/verify-email`;
-const PASSWORD_RESET_URL =
-  process.env.PASSWORD_RESET_URL || `${APP_BASE_URL}/reset-password`;
+const FRONTEND_URL = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
 
 export const register = async (req, res, next) => {
   try {
@@ -70,14 +70,22 @@ export const register = async (req, res, next) => {
       },
     });
 
-    const verificationLink = `${EMAIL_VERIFICATION_URL}?token=${verificationToken}`;
+    const verificationUrl = new URL("/verify", `${FRONTEND_URL}/`);
+    verificationUrl.searchParams.set("token", verificationToken);
+    const verificationLink = verificationUrl.toString();
 
     try {
+      const { subject, text, html } = buildAccountVerificationEmail({
+        locale: req.body.locale,
+        name,
+        verificationLink,
+      });
+
       await sendMail({
         to: email,
-        subject: "Conferma la tua registrazione",
-        text: `Ciao ${name},\n\nPer completare la registrazione clicca sul link: ${verificationLink}\n\nSe non hai richiesto questo account, ignora questa email.`,
-        html: `<p>Ciao ${name},</p><p>Per completare la registrazione clicca sul seguente link:</p><p><a href="${verificationLink}">${verificationLink}</a></p><p>Se non hai richiesto questo account, ignora questa email.</p>`,
+        subject,
+        text,
+        html,
       });
     } catch (mailErr) {
       await prisma.user.delete({ where: { id: user.id } });
@@ -200,14 +208,22 @@ export const requestPasswordReset = async (req, res, next) => {
       },
     });
 
-    const resetLink = `${PASSWORD_RESET_URL}?token=${resetToken}`;
+    const resetUrl = new URL("/reset-password", `${FRONTEND_URL}/`);
+    resetUrl.searchParams.set("token", resetToken);
+    const resetLink = resetUrl.toString();
 
     try {
+      const { subject, text, html } = buildPasswordResetEmail({
+        locale: req.body.locale,
+        name: user.name,
+        resetLink,
+      });
+
       await sendMail({
         to: email,
-        subject: "Reset della password",
-        text: `Ciao ${user.name},\n\nPer reimpostare la password clicca sul link: ${resetLink}\nQuesto link scadrà tra 1 ora.\n\nSe non hai richiesto il reset, ignora questa email.`,
-        html: `<p>Ciao ${user.name},</p><p>Per reimpostare la password clicca sul seguente link (valido 1 ora):</p><p><a href="${resetLink}">${resetLink}</a></p><p>Se non hai richiesto il reset, ignora questa email.</p>`,
+        subject,
+        text,
+        html,
       });
     } catch (mailErr) {
       console.error("Password reset email delivery failed:", mailErr);

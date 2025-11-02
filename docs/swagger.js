@@ -179,6 +179,12 @@ export const initSwaggerDocs = app => {
         name: { type: "string", example: "John Doe" },
         email: { type: "string", format: "email", example: "john@example.com" },
         password: { type: "string", format: "password", example: "Password123!" },
+        locale: {
+          type: "string",
+          example: "en",
+          enum: ["it", "en"],
+          description: "Lingua da usare per l'email di verifica (default: it).",
+        },
       });
       setTag(registerOperation, "Auth");
       setJsonResponse(registerOperation, "201", registerSchema, "Created");
@@ -219,6 +225,12 @@ export const initSwaggerDocs = app => {
       const requestResetOperation = ensureOperation("/api/auth/request-password-reset", "post");
       setRequestBody(requestResetOperation, ["email"], {
         email: { type: "string", format: "email", example: "john@example.com" },
+        locale: {
+          type: "string",
+          example: "it",
+          enum: ["it", "en"],
+          description: "Lingua da usare per l'email di reset (default: it).",
+        },
       });
       setTag(requestResetOperation, "Auth");
       setJsonResponse(requestResetOperation, "200", messageSchema, "Reset instructions sent");
