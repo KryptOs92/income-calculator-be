@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import cryptoRoutes from "./routes/crypto.routes.js";
 import cryptoAddressRoutes from "./routes/cryptoAddress.routes.js";
@@ -12,6 +13,24 @@ const app = express();
 app._router = app.router; // compatibility with libs expecting Express 4 internals
 
 initSwaggerDocs(app);
+
+const allowedOrigins =
+  (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:5173")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 
