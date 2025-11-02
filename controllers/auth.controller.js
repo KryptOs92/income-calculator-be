@@ -37,6 +37,13 @@ export const register = async (req, res, next) => {
       return next();
     }
 
+    if (!/[A-Z]/.test(password) || !/\d/.test(password)) {
+      res
+        .status(400)
+        .json({ message: "password must contain at least one uppercase letter and one number" });
+      return next();
+    }
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       res.status(400).json({ message: "Email already registered" });
