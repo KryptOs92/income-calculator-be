@@ -13,10 +13,27 @@ const PASSWORD_RESET_URL =
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    const email = typeof req.body.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req.body.password === "string" ? req.body.password : "";
 
     if (!name || !email || !password) {
       res.status(400).json({ message: "name, email and password are required" });
+      return next();
+    }
+
+    if (name.length > 100) {
+      res.status(400).json({ message: "name must be at most 100 characters" });
+      return next();
+    }
+
+    if (email.length > 255) {
+      res.status(400).json({ message: "email must be at most 255 characters" });
+      return next();
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      res.status(400).json({ message: "password must be between 8 and 128 characters" });
       return next();
     }
 
