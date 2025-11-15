@@ -34,6 +34,36 @@ app.use(
 
 app.use(express.json());
 
+app.use((req, _res, next) => {
+  const jar = Object.create(null);
+  const header = req.headers.cookie;
+  if (!header) {
+    req.cookies = jar;
+    next();
+    return;
+  }
+
+  for (const chunk of header.split(";")) {
+    const [rawName, ...rawValueParts] = chunk.split("=");
+    if (!rawName) {
+      continue;
+    }
+    const name = rawName.trim();
+    if (!name) {
+      continue;
+    }
+    const value = rawValueParts.join("=").trim();
+    try {
+      jar[name] = decodeURIComponent(value);
+    } catch {
+      jar[name] = value;
+    }
+  }
+
+  req.cookies = jar;
+  next();
+});
+
 app.use(authRoutes);
 app.use(cryptoRoutes);
 app.use(cryptoAddressRoutes);

@@ -151,6 +151,9 @@ export const initSwaggerDocs = app => {
         type: "object",
         properties: {
           token: { type: "string", example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+          tokenType: { type: "string", example: "Bearer" },
+          expiresIn: { type: "string", example: "24h" },
+          rememberMe: { type: "boolean", example: false },
         },
       });
 
@@ -197,11 +200,36 @@ export const initSwaggerDocs = app => {
       setRequestBody(loginOperation, ["email", "password"], {
         email: { type: "string", format: "email", example: "john@example.com" },
         password: { type: "string", format: "password", example: "Password123!" },
+        rememberMe: {
+          type: "boolean",
+          example: false,
+          description: "Se true estende la durata del refresh token.",
+        },
       });
       setTag(loginOperation, "Auth");
       setJsonResponse(loginOperation, "200", loginSchema, "Authenticated");
       loginOperation.responses["400"] = {
         description: "Bad Request",
+        content: { "application/json": { schema: errorSchema } },
+      };
+      loginOperation.responses["401"] = {
+        description: "Unauthorized",
+        content: { "application/json": { schema: errorSchema } },
+      };
+
+      const refreshOperation = ensureOperation("/api/auth/refresh", "post");
+      setTag(refreshOperation, "Auth");
+      setJsonResponse(refreshOperation, "200", loginSchema, "Session refreshed");
+      refreshOperation.responses["401"] = {
+        description: "Unauthorized",
+        content: { "application/json": { schema: errorSchema } },
+      };
+
+      const logoutOperation = ensureOperation("/api/auth/logout", "post");
+      setTag(logoutOperation, "Auth");
+      setJsonResponse(logoutOperation, "200", messageSchema, "Logged out");
+      logoutOperation.responses["401"] = {
+        description: "Unauthorized",
         content: { "application/json": { schema: errorSchema } },
       };
 

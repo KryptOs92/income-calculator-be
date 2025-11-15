@@ -26,6 +26,7 @@ model User {
   createdAt DateTime @default(now())
   cryptoAddresses UserCryptoAddress[]
   serverNodes      ServerNode[]
+  refreshTokens    RefreshToken[]
 }
 
 model Crypto {
@@ -89,4 +90,22 @@ model EnergyRate {
   serverNode ServerNode @relation(fields: [serverNodeId], references: [id], onDelete: Cascade)
 
   @@index([serverNodeId, effectiveFrom])
+}
+
+model RefreshToken {
+  id          Int      @id @default(autoincrement())
+  tokenHash   String   @unique @db.Char(64)
+  userId      Int
+  rememberMe  Boolean  @default(false)p
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  revokedAt   DateTime?
+  userAgent   String?  @db.VarChar(255)
+  ipAddress   String?  @db.VarChar(45)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
