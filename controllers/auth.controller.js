@@ -157,7 +157,7 @@ export const register = async (req, res, next) => {
       },
     });
 
-    const verificationUrl = new URL("/verify-email", `${FRONTEND_URL}/`);
+    const verificationUrl = new URL("/verify", `${FRONTEND_URL}/`);
     verificationUrl.searchParams.set("token", verificationToken);
     const verificationLink = verificationUrl.toString();
 
