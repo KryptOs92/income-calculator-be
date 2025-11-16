@@ -1,0 +1,95 @@
+1	# Flusso di login, Bearer token e refresh cookie
+2	
+3	## Visione d'insieme
+4	- Il client invia le credenziali a `POST /api/auth/login` insieme all'opzione `rememberMe`.
+5	- Il controller (`controllers/auth.controller.js`) verifica utente e password, controlla che l'email sia verificata e genera **due artefatti**: un access token JWT e un refresh token casuale.
+6	- L'access token viene restituito nel body JSON (`token`, `tokenType: "Bearer"`, `expiresIn`), da usare nell'header `Authorization: Bearer <token>` per tutte le API protette.
+7	- Il refresh token viene salvato **solo come hash** in tabella `RefreshToken` (via Prisma) e il valore originale è inviato come cookie HTTP-only al browser; il cookie serve agli endpoint `/api/auth/refresh` e `/api/auth/logout`.
+8	- Quando l'access token scade, il client chiama `/api/auth/refresh`: il backend leggere il cookie, valida e ruota il refresh token, emettendo un nuovo JWT e un nuovo cookie. Il logout revoca e cancella il cookie (rotazione forzata).
+9	
+10	## Diagrammi
+11	
+12	### 1. Login e rilascio dei token
+13	
+14	```mermaid
+15	sequenceDiagram
+16	    autonumber
+17	    participant U as Utente
+18	    participant FE as Frontend SPA
+19	    participant API as Backend /api/auth
+20	    participant DB as Tabella RefreshToken
+21	
+22	    U->>FE: Inserisce email/password + rememberMe
+23	    FE->>API: POST /api/auth/login
+24	    API->>DB: user.findUnique(email)
+25	    API->>API: bcrypt.compare(password, hash salvato)
+26	    API->>API: issueAccessToken(userId)
+27	    API->>DB: refreshToken.create(tokenHash, rememberMe, UA, IP)
+28	    API-->>FE: JSON {token, tokenType, expiresIn}
+29	    API-->>FE: Set-Cookie refreshToken=<value>
+30	```
+31	
+32	### 2. Utilizzo del Bearer e refresh periodico
+33	
+34	```mermaid
+35	sequenceDiagram
+36	    autonumber
+37	    participant FE as Frontend SPA
+38	    participant API as Backend protetto
+39	    participant DB as Tabella RefreshToken
+40	
+41	    FE->>API: Authorization: Bearer <token>
+42	    API-->>FE: Risposta protetta
+43	    Note over FE,API: Alla scadenza (expiresIn)\nil client passa al refresh
+44	    FE->>API: POST /api/auth/refresh (cookie inviato)
+45	    API->>DB: refreshToken.findUnique(hash(cookie))
+46	    API->>DB: refreshToken.update(newHash, expiresAt, metadata)
+47	    API-->>FE: Nuovo JSON {token,...}
+48	    API-->>FE: Nuovo cookie refreshToken
+49	```
+50	
+51	### 3. Logout e revoca
+52	
+53	```mermaid
+54	sequenceDiagram
+55	    autonumber
+56	    participant FE as Frontend SPA
+57	    participant API as Backend /api/auth/logout
+58	    participant DB as Tabella RefreshToken
+59	
+60	    FE->>API: POST /api/auth/logout
+61	    API->>DB: refreshToken.update({ revokedAt: now })
+62	    API-->>FE: Risposta JSON (logout effettuato)
+63	    API-->>FE: Set-Cookie refreshToken cleared (Max-Age 0)
+64	```
+65	
+66	## Dettaglio degli artefatti
+67	
+68	### Access/Bearer token
+69	- Creato da `issueAccessToken(userId)` con `jsonwebtoken`.
+70	- Payload minimale `{ userId }`, firmato con `JWT_SECRET`.
+71	- Scadenza configurabile tramite `ACCESS_TOKEN_EXPIRATION` (default `24h`): dopo tale periodo è necessario un refresh.
+72	- Trasporto: header `Authorization: Bearer <token>`.
+73	
+74	### Refresh token e cookie
+75	
+76	| Elemento | Valore / origine | Note |
+77	| --- | --- | --- |
+78	| Nome cookie | `REFRESH_COOKIE_NAME` (default `refreshToken`) | impostato in `login` e `refreshSession`. |
+79	| Valore | stringa hex da `crypto.randomBytes(64)` (128 caratteri) | **Non** memorizzato in chiaro: nel DB viene salvato `sha256(value)`. |
+80	| Path | `REFRESH_COOKIE_PATH` (default `/api/auth`) | Limita l'invio del cookie alle rotte auth. |
+81	| Dominio | `REFRESH_COOKIE_DOMAIN` (opzionale) | Solo se configurato. |
+82	| `httpOnly` | sempre `true` | Mitiga XSS: il JS del browser non può leggere il cookie. |
+83	| `secure` | `true` in produzione o se `REFRESH_COOKIE_SECURE="true"` | Obbligatorio se `SameSite=None`. |
+84	| `sameSite` | `REFRESH_COOKIE_SAMESITE` (`lax` di default) | `none`, `lax` o `strict`. |
+85	| `maxAge` | dipende da `rememberMe` | `REFRESH_TOKEN_TTL_HOURS` (default 24h) oppure `REFRESH_TOKEN_REMEMBER_TTL_DAYS` (default 30 giorni). |
+86	| Metadata | `userAgent` (255 char) e `ipAddress` (45 char) | Salvati nel record `RefreshToken` per auditing. |
+87	
+88	### Rotazione e revoca
+89	- Ogni chiamata a `/api/auth/refresh` copia `rememberMe` dal record, genera un nuovo token, aggiorna hash e scadenza e restituisce nuovo cookie + bearer.
+90	- Se il refresh fallisce (token assente/scaduto/revocato) il cookie viene cancellato e si restituisce `401`.
+91	- `/api/auth/logout` tenta di marcare il token come revocato (`revokedAt`) e cancella sempre il cookie con `clearRefreshCookie`.
+92	
+93	## Come leggere l'immagine
+94	- Il blocco Mermaid qui sopra può essere incollato direttamente in strumenti compatibili (es. https://mermaid.live/, VS Code con plugin Mermaid, Obsidian, GitHub Markdown) per ottenere l'immagine.
+95	- Dopo il rendering otterrai un diagramma che mostra cronologicamente come nascono e vengono usati Bearer token, refresh token e cookie nel tuo backend.
