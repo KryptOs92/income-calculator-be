@@ -1,5 +1,30 @@
 import prisma from "../lib/prisma.js";
 
+const parseIsReady = value => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return null;
+};
+
+const extractIsReady = body => {
+  if (!Object.prototype.hasOwnProperty.call(body ?? {}, "isReady")) {
+    return { provided: false, value: undefined };
+  }
+  const parsed = parseIsReady(body.isReady);
+  if (parsed === null) {
+    return { provided: true, error: "isReady must be a boolean value" };
+  }
+  return { provided: true, value: parsed };
+};
+
 export const listCryptos = async (req, res, next) => {
   try {
     const cryptos = await prisma.crypto.findMany({
@@ -39,14 +64,26 @@ export const getCrypto = async (req, res, next) => {
 
 export const createCrypto = async (req, res, next) => {
   try {
-    const { name, symbol, logoUrl } = req.body;
+    const { name, symbol } = req.body;
+    const isReadyResult = extractIsReady(req.body);
+
+    if (isReadyResult.error) {
+      res.status(400).json({ message: isReadyResult.error });
+      return next();
+    }
+
     if (!name) {
       res.status(400).json({ message: "name is required" });
       return next();
     }
 
+    const data = { name, symbol };
+    if (isReadyResult.provided) {
+      data.isReady = isReadyResult.value;
+    }
+
     const crypto = await prisma.crypto.create({
-      data: { name, symbol, logoUrl },
+      data,
     });
     res.status(201).json(crypto);
     return next();
@@ -65,11 +102,22 @@ export const updateCrypto = async (req, res, next) => {
       return next();
     }
 
-    const { name, symbol, logoUrl } = req.body;
+    const { name, symbol } = req.body;
+    const isReadyResult = extractIsReady(req.body);
+
+    if (isReadyResult.error) {
+      res.status(400).json({ message: isReadyResult.error });
+      return next();
+    }
+
+    const data = { name, symbol };
+    if (isReadyResult.provided) {
+      data.isReady = isReadyResult.value;
+    }
 
     const crypto = await prisma.crypto.update({
       where: { id },
-      data: { name, symbol, logoUrl },
+      data,
     });
 
     res.json(crypto);

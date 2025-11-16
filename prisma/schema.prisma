@@ -33,7 +33,7 @@ model Crypto {
   id        Int      @id @default(autoincrement())
   name      String
   symbol    String?  @unique
-  logoUrl   String?
+  isReady   Boolean  @default(false)
   createdAt DateTime @default(now())
   addresses UserCryptoAddress[]
 }
@@ -96,7 +96,7 @@ model RefreshToken {
   id          Int      @id @default(autoincrement())
   tokenHash   String   @unique @db.Char(64)
   userId      Int
-  rememberMe  Boolean  @default(false)p
+  rememberMe  Boolean  @default(false)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

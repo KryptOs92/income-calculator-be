@@ -285,10 +285,10 @@ export const initSwaggerDocs = app => {
           id: { type: "integer", example: 1 },
           name: { type: "string", example: "Bitcoin" },
           symbol: { type: "string", example: "BTC" },
-          logoUrl: {
-            type: "string",
-            format: "uri",
-            example: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+          isReady: {
+            type: "boolean",
+            example: true,
+            description: "Indica se la crypto è pronta ad essere utilizzata nell'app.",
           },
           createdAt: {
             type: "string",
@@ -306,10 +306,10 @@ export const initSwaggerDocs = app => {
       const cryptoPayloadProperties = {
         name: { type: "string", example: "Bitcoin" },
         symbol: { type: "string", example: "BTC" },
-        logoUrl: {
-          type: "string",
-          format: "uri",
-          example: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+        isReady: {
+          type: "boolean",
+          example: false,
+          description: "Se specificato, imposta manualmente lo stato della crypto (default false).",
         },
       };
 
