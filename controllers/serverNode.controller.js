@@ -50,19 +50,19 @@ export const getServerNode = async (req, res, next) => {
 
 export const createServerNode = async (req, res, next) => {
   try {
-    const { name, powerKw, dailyUptimeSeconds } = req.body;
-    const parsedPower = Number(powerKw);
+    const { name, Wh: wh, dailyUptimeSeconds } = req.body;
+    const parsedPower = Number(wh);
     const parsedUptime = Number(dailyUptimeSeconds);
     if (
       !name ||
-      powerKw === undefined ||
+      wh === undefined ||
       dailyUptimeSeconds === undefined ||
       Number.isNaN(parsedPower) ||
       Number.isNaN(parsedUptime)
     ) {
       res
         .status(400)
-        .json({ message: "name, powerKw and dailyUptimeSeconds are required and must be numbers" });
+        .json({ message: "name, Wh and dailyUptimeSeconds are required and must be numbers" });
       return next();
     }
 
@@ -70,7 +70,7 @@ export const createServerNode = async (req, res, next) => {
       data: {
         userId: req.user.userId,
         name,
-        powerKw: parsedPower,
+        Wh: parsedPower,
         dailyUptimeSeconds: parsedUptime,
       },
     });
@@ -101,14 +101,14 @@ export const updateServerNode = async (req, res, next) => {
       return next();
     }
 
-    const { name, powerKw, dailyUptimeSeconds } = req.body;
+    const { name, Wh: wh, dailyUptimeSeconds } = req.body;
     const parsedPower =
-      powerKw !== undefined ? Number(powerKw) : node.powerKw;
+      wh !== undefined ? Number(wh) : node.Wh;
     const parsedUptime =
       dailyUptimeSeconds !== undefined ? Number(dailyUptimeSeconds) : node.dailyUptimeSeconds;
 
     if (Number.isNaN(parsedPower) || Number.isNaN(parsedUptime)) {
-      res.status(400).json({ message: "powerKw and dailyUptimeSeconds must be numbers" });
+      res.status(400).json({ message: "Wh and dailyUptimeSeconds must be numbers" });
       return next();
     }
 
@@ -116,7 +116,7 @@ export const updateServerNode = async (req, res, next) => {
       where: { id },
       data: {
         name: name ?? node.name,
-        powerKw: parsedPower,
+        Wh: parsedPower,
         dailyUptimeSeconds: parsedUptime,
       },
     });

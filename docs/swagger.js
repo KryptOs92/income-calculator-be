@@ -313,6 +313,48 @@ export const initSwaggerDocs = app => {
         },
       };
 
+      const serverNodeSchema = ensureSchema("ServerNode", {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 42 },
+          name: { type: "string", example: "Validator EU-1" },
+          Wh: {
+            type: "number",
+            example: 1250.5,
+            description: "Energia consumata dal nodo espressa in wattora.",
+          },
+          dailyUptimeSeconds: {
+            type: "integer",
+            example: 82800,
+            description: "Tempo di attività giornaliero previsto (in secondi).",
+          },
+          createdAt: {
+            type: "string",
+            format: "date-time",
+            example: "2024-01-01T12:00:00.000Z",
+          },
+        },
+      });
+
+      const serverNodeListSchema = ensureSchema("ServerNodeList", {
+        type: "array",
+        items: serverNodeSchema,
+      });
+
+      const serverNodePayloadProperties = {
+        name: { type: "string", example: "Validator EU-1" },
+        Wh: {
+          type: "number",
+          example: 1250.5,
+          description: "Energia consumata dal nodo espressa in wattora.",
+        },
+        dailyUptimeSeconds: {
+          type: "integer",
+          example: 82800,
+          description: "Tempo di attività giornaliero previsto (in secondi).",
+        },
+      };
+
       const listCryptosOperation = ensureOperation("/api/cryptos", "get");
       setJsonResponse(listCryptosOperation, "200", cryptoListSchema, "List of cryptocurrencies");
 
@@ -334,6 +376,33 @@ export const initSwaggerDocs = app => {
       deleteCryptoOperation.responses = deleteCryptoOperation.responses || {};
       deleteCryptoOperation.responses["204"] = {
         description: "Cryptocurrency deleted",
+      };
+
+      const listServerNodesOperation = ensureOperation("/api/server-nodes", "get");
+      setJsonResponse(listServerNodesOperation, "200", serverNodeListSchema, "List of server nodes");
+
+      const getServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "get");
+      ensurePathParameter(getServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
+      setJsonResponse(getServerNodeOperation, "200", serverNodeSchema, "Server node details");
+
+      const createServerNodeOperation = ensureOperation("/api/server-nodes", "post");
+      setRequestBody(
+        createServerNodeOperation,
+        ["name", "Wh", "dailyUptimeSeconds"],
+        serverNodePayloadProperties
+      );
+      setJsonResponse(createServerNodeOperation, "201", serverNodeSchema, "Server node created");
+
+      const updateServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "put");
+      ensurePathParameter(updateServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
+      setRequestBody(updateServerNodeOperation, [], serverNodePayloadProperties);
+      setJsonResponse(updateServerNodeOperation, "200", serverNodeSchema, "Server node updated");
+
+      const deleteServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "delete");
+      ensurePathParameter(deleteServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
+      deleteServerNodeOperation.responses = deleteServerNodeOperation.responses || {};
+      deleteServerNodeOperation.responses["204"] = {
+        description: "Server node deleted",
       };
 
       secureOperations.forEach(([path, method]) => {

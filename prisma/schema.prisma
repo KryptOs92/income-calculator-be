@@ -71,7 +71,7 @@ model ServerNode {
   id                 Int       @id @default(autoincrement())
   userId             Int
   name               String
-  powerKw            Float
+  Wh                 Float
   dailyUptimeSeconds Int
   createdAt          DateTime  @default(now())
 
