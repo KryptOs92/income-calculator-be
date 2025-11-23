@@ -66,9 +66,9 @@ export const initSwaggerDocs = app => {
         return spec.paths[path][method];
       };
 
-      const ensureSchema = (name, schema) => {
+      const ensureSchema = (name, schema, { overwrite = false } = {}) => {
         spec.components.schemas = spec.components.schemas || {};
-        if (!spec.components.schemas[name]) {
+        if (overwrite || !spec.components.schemas[name]) {
           spec.components.schemas[name] = schema;
         }
         return { $ref: "#/components/schemas/" + name };
@@ -313,33 +313,41 @@ export const initSwaggerDocs = app => {
         },
       };
 
-      const serverNodeSchema = ensureSchema("ServerNode", {
-        type: "object",
-        properties: {
-          id: { type: "integer", example: 42 },
-          name: { type: "string", example: "Validator EU-1" },
-          Wh: {
-            type: "number",
-            example: 1250.5,
-            description: "Energia consumata dal nodo espressa in wattora.",
-          },
-          dailyUptimeSeconds: {
-            type: "integer",
-            example: 82800,
-            description: "Tempo di attività giornaliero previsto (in secondi).",
-          },
-          createdAt: {
-            type: "string",
-            format: "date-time",
-            example: "2024-01-01T12:00:00.000Z",
+      const serverNodeSchema = ensureSchema(
+        "ServerNode",
+        {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 42 },
+            name: { type: "string", example: "Validator EU-1" },
+            Wh: {
+              type: "number",
+              example: 1250.5,
+              description: "Energia consumata dal nodo espressa in wattora.",
+            },
+            dailyUptimeSeconds: {
+              type: "integer",
+              example: 82800,
+              description: "Tempo di attività giornaliero previsto (in secondi).",
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              example: "2024-01-01T12:00:00.000Z",
+            },
           },
         },
-      });
+        { overwrite: true }
+      );
 
-      const serverNodeListSchema = ensureSchema("ServerNodeList", {
-        type: "array",
-        items: serverNodeSchema,
-      });
+      const serverNodeListSchema = ensureSchema(
+        "ServerNodeList",
+        {
+          type: "array",
+          items: serverNodeSchema,
+        },
+        { overwrite: true }
+      );
 
       const serverNodePayloadProperties = {
         name: { type: "string", example: "Validator EU-1" },
