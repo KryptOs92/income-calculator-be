@@ -139,6 +139,27 @@ export const listServerNodes = async (req, res, next) => {
   }
 };
 
+export const listDeletedServerNodes = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const nodes = await prisma.serverNode.findMany({
+      where: { userId: req.user.userId, deletedAt: { not: null } },
+      include: {
+        energyRates: true,
+        powerHistory: currentTemporalInclude(now),
+        uptimeHistory: currentTemporalInclude(now),
+      },
+      orderBy: { deletedAt: "desc" },
+    });
+    res.json(nodes.map(shapeNodeWithCurrentValues));
+    return next();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch deleted server nodes" });
+    return next();
+  }
+};
+
 export const getServerNode = async (req, res, next) => {
   try {
     const id = parseId(req.params.id);
@@ -159,6 +180,38 @@ export const getServerNode = async (req, res, next) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to fetch server node" });
+    return next();
+  }
+};
+
+export const activateServerNode = async (req, res, next) => {
+  try {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      res.status(400).json({ message: "Invalid server node id" });
+      return next();
+    }
+
+    const node = await prisma.serverNode.findFirst({
+      where: { id, userId: req.user.userId, deletedAt: { not: null } },
+    });
+
+    if (!node) {
+      res.status(404).json({ message: "Deleted server node not found" });
+      return next();
+    }
+
+    await prisma.serverNode.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+
+    const shaped = await fetchNodeWithCurrentValues(id, req.user.userId);
+    res.status(200).json(shaped);
+    return next();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to activate server node" });
     return next();
   }
 };
@@ -483,11 +536,13 @@ export const deleteServerNode = async (req, res, next) => {
       return next();
     }
 
+    const shaped = await fetchNodeWithCurrentValues(id, req.user.userId);
+    const deletedAt = new Date();
     await prisma.serverNode.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt },
     });
-    res.status(204).send();
+    res.status(200).json({ ...shaped, deletedAt });
     return next();
   } catch (err) {
     console.error(err);

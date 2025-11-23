@@ -21,6 +21,8 @@ const secureOperations = [
   ["/api/server-nodes/{id}", "get"],
   ["/api/server-nodes/{id}", "put"],
   ["/api/server-nodes/{id}", "delete"],
+  ["/api/server-nodes/deleted", "get"],
+  ["/api/server-nodes/{id}/activate", "post"],
   ["/api/server-node-powers", "get"],
   ["/api/server-node-powers", "post"],
   ["/api/server-node-powers/{id}", "get"],
@@ -47,6 +49,8 @@ const tagMap = {
   "/api/crypto-inflows/{id}": "Crypto Inflows",
   "/api/server-nodes": "Server Nodes",
   "/api/server-nodes/{id}": "Server Nodes",
+  "/api/server-nodes/deleted": "Server Nodes",
+  "/api/server-nodes/{id}/activate": "Server Nodes",
   "/api/server-node-powers": "Server Node Power",
   "/api/server-node-powers/{id}": "Server Node Power",
   "/api/server-node-uptimes": "Server Node Uptime",
@@ -365,6 +369,13 @@ export const initSwaggerDocs = app => {
               format: "date-time",
               example: "2024-01-01T12:00:00.000Z",
             },
+            deletedAt: {
+              type: "string",
+              format: "date-time",
+              nullable: true,
+              example: null,
+              description: "Valorizzato quando il nodo è stato disabilitato (soft delete).",
+            },
           },
         },
         { overwrite: true }
@@ -523,6 +534,14 @@ export const initSwaggerDocs = app => {
       const listServerNodesOperation = ensureOperation("/api/server-nodes", "get");
       setJsonResponse(listServerNodesOperation, "200", serverNodeListSchema, "List of server nodes");
 
+      const listDeletedServerNodesOperation = ensureOperation("/api/server-nodes/deleted", "get");
+      setJsonResponse(
+        listDeletedServerNodesOperation,
+        "200",
+        serverNodeListSchema,
+        "List of deleted (soft) server nodes"
+      );
+
       const getServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "get");
       ensurePathParameter(getServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
       setJsonResponse(getServerNodeOperation, "200", serverNodeSchema, "Server node details");
@@ -539,9 +558,21 @@ export const initSwaggerDocs = app => {
       const deleteServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "delete");
       ensurePathParameter(deleteServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
       deleteServerNodeOperation.responses = deleteServerNodeOperation.responses || {};
-      deleteServerNodeOperation.responses["204"] = {
-        description: "Server node deleted",
-      };
+      setJsonResponse(
+        deleteServerNodeOperation,
+        "200",
+        serverNodeSchema,
+        "Server node soft deleted (with last known values)"
+      );
+
+      const activateServerNodeOperation = ensureOperation("/api/server-nodes/{id}/activate", "post");
+      ensurePathParameter(activateServerNodeOperation, "id", { type: "integer" }, "Server node identifier");
+      setJsonResponse(
+        activateServerNodeOperation,
+        "200",
+        serverNodeSchema,
+        "Server node reactivated (soft delete removed)"
+      );
 
       const listServerNodePowersOperation = ensureOperation("/api/server-node-powers", "get");
       listServerNodePowersOperation.parameters = [
