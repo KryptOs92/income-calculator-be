@@ -11,23 +11,32 @@ const parseDate = value => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const FAR_FUTURE = new Date("9999-12-31T23:59:59.999Z");
+const minusOneMillisecond = date => new Date(date.getTime() - 1);
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
   return prisma.serverNode.findFirst({ where: { id: serverNodeId, userId } });
 };
 
-const hasOverlap = async (serverNodeId, effectiveFrom, effectiveTo, excludeId) => {
-  const upper = effectiveTo ?? FAR_FUTURE;
-  return prisma.serverNodeUptime.findFirst({
+const findConflictAt = (serverNodeId, effectiveFrom, excludeId) =>
+  prisma.serverNodeUptime.findFirst({
     where: {
       serverNodeId,
       ...(excludeId ? { NOT: { id: excludeId } } : {}),
-      effectiveFrom: { lt: upper },
+      effectiveFrom: { lte: effectiveFrom },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: effectiveFrom } }],
+    },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+const hasRangeOverlap = (serverNodeId, effectiveFrom, effectiveTo, excludeId) =>
+  prisma.serverNodeUptime.findFirst({
+    where: {
+      serverNodeId,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      effectiveFrom: { lt: effectiveTo },
       OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
     },
   });
-};
 
 export const listServerNodeUptimes = async (req, res, next) => {
   try {
@@ -116,16 +125,30 @@ export const createServerNodeUptime = async (req, res, next) => {
       return next();
     }
     const from = parsedFromInput ?? new Date();
-    const to = parsedTo;
+    const to = parsedTo ?? null;
     if (to && from >= to) {
       res.status(400).json({ message: "effectiveTo must be after effectiveFrom" });
       return next();
     }
 
-    const overlap = await hasOverlap(parsedNodeId, from, to ?? FAR_FUTURE);
-    if (overlap) {
-      res.status(409).json({ message: "An uptime entry already exists for the provided time range" });
-      return next();
+    if (to === null) {
+      const conflict = await findConflictAt(parsedNodeId, from);
+      if (conflict) {
+        if (from <= conflict.effectiveFrom) {
+          res.status(409).json({ message: "effectiveFrom must be after the current open period start" });
+          return next();
+        }
+        await prisma.serverNodeUptime.update({
+          where: { id: conflict.id },
+          data: { effectiveTo: minusOneMillisecond(from) },
+        });
+      }
+    } else {
+      const overlap = await hasRangeOverlap(parsedNodeId, from, to);
+      if (overlap) {
+        res.status(409).json({ message: "An uptime entry already exists for the provided time range" });
+        return next();
+      }
     }
 
     const created = await prisma.serverNodeUptime.create({
@@ -133,7 +156,7 @@ export const createServerNodeUptime = async (req, res, next) => {
         serverNodeId: parsedNodeId,
         dailyUptimeSeconds: parsedUptime,
         effectiveFrom: from,
-        effectiveTo: to ?? null,
+        effectiveTo: to,
       },
     });
 
@@ -196,10 +219,28 @@ export const updateServerNodeUptime = async (req, res, next) => {
     data.effectiveFrom = from;
     data.effectiveTo = to ?? null;
 
-    const overlap = await hasOverlap(existing.serverNodeId, from, to ?? FAR_FUTURE, existing.id);
-    if (overlap) {
-      res.status(409).json({ message: "An uptime entry already exists for the provided time range" });
-      return next();
+    if (to === null) {
+      const conflict = await findConflictAt(existing.serverNodeId, from, existing.id);
+      if (conflict) {
+        if (from <= conflict.effectiveFrom) {
+          res
+            .status(409)
+            .json({ message: "effectiveFrom must be after the current open period start" });
+          return next();
+        }
+        await prisma.serverNodeUptime.update({
+          where: { id: conflict.id },
+          data: { effectiveTo: minusOneMillisecond(from) },
+        });
+      }
+    } else {
+      const overlap = await hasRangeOverlap(existing.serverNodeId, from, to, existing.id);
+      if (overlap) {
+        res
+          .status(409)
+          .json({ message: "An uptime entry already exists for the provided time range" });
+        return next();
+      }
     }
 
     const updated = await prisma.serverNodeUptime.update({

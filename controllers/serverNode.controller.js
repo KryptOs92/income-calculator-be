@@ -11,7 +11,7 @@ const parseDate = value => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const FAR_FUTURE = new Date("9999-12-31T23:59:59.999Z");
+const minusOneMillisecond = date => new Date(date.getTime() - 1);
 
 const currentTemporalInclude = now => ({
   where: {
@@ -57,15 +57,63 @@ const ensureNodeOwnership = async (serverNodeId, userId) => {
   return prisma.serverNode.findFirst({ where: { id: serverNodeId, userId } });
 };
 
-const hasOverlap = async (modelName, serverNodeId, effectiveFrom, effectiveTo) => {
-  const upper = effectiveTo ?? FAR_FUTURE;
-  return prisma[modelName].findFirst({
+const findConflictAt = (modelName, serverNodeId, effectiveFrom) =>
+  prisma[modelName].findFirst({
     where: {
       serverNodeId,
-      effectiveFrom: { lt: upper },
+      effectiveFrom: { lte: effectiveFrom },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: effectiveFrom } }],
+    },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+const hasRangeOverlap = (modelName, serverNodeId, effectiveFrom, effectiveTo) =>
+  prisma[modelName].findFirst({
+    where: {
+      serverNodeId,
+      effectiveFrom: { lt: effectiveTo },
       OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
     },
   });
+
+const insertTemporalEntry = async (modelName, serverNodeId, data) => {
+  const from = data.effectiveFrom ?? new Date();
+  const to = data.effectiveTo === undefined ? null : data.effectiveTo;
+
+  if (to && from >= to) {
+    return { error: "effectiveTo must be after effectiveFrom" };
+  }
+
+  if (to === null) {
+    const conflict = await findConflictAt(modelName, serverNodeId, from);
+    if (conflict) {
+      if (from <= conflict.effectiveFrom) {
+        return {
+          error: "effectiveFrom must be after the current open period start",
+        };
+      }
+      await prisma[modelName].update({
+        where: { id: conflict.id },
+        data: { effectiveTo: minusOneMillisecond(from) },
+      });
+    }
+  } else {
+    const overlap = await hasRangeOverlap(modelName, serverNodeId, from, to);
+    if (overlap) {
+      return { error: "An entry already exists for the provided time range" };
+    }
+  }
+
+  const created = await prisma[modelName].create({
+    data: {
+      ...data,
+      effectiveFrom: from,
+      effectiveTo: to,
+      serverNodeId,
+    },
+  });
+
+  return { created };
 };
 
 export const listServerNodes = async (req, res, next) => {
@@ -263,24 +311,10 @@ export const createServerNode = async (req, res, next) => {
 
     const operations = [];
     if (powerData) {
-      operations.push(
-        prisma.serverNodePower.create({
-          data: {
-            serverNodeId: node.id,
-            ...powerData,
-          },
-        })
-      );
+      operations.push(insertTemporalEntry("serverNodePower", node.id, powerData));
     }
     if (uptimeData) {
-      operations.push(
-        prisma.serverNodeUptime.create({
-          data: {
-            serverNodeId: node.id,
-            ...uptimeData,
-          },
-        })
-      );
+      operations.push(insertTemporalEntry("serverNodeUptime", node.id, uptimeData));
     }
     if (energyRateData) {
       operations.push(
@@ -297,7 +331,12 @@ export const createServerNode = async (req, res, next) => {
     }
 
     if (operations.length > 0) {
-      await prisma.$transaction(operations);
+      const results = await Promise.all(operations);
+      const firstError = results.find(r => r?.error);
+      if (firstError?.error) {
+        res.status(409).json({ message: firstError.error });
+        return next();
+      }
     }
 
     const shaped = await fetchNodeWithCurrentValues(node.id, req.user.userId);
@@ -364,31 +403,11 @@ export const updateServerNode = async (req, res, next) => {
         res.status(400).json({ message: "powerEffectiveTo is invalid" });
         return next();
       }
-      const parsedPowerFrom = parsedPowerFromInput ?? new Date();
-      if (parsedPowerTo && parsedPowerFrom >= parsedPowerTo) {
-        res.status(400).json({ message: "powerEffectiveTo must be after powerEffectiveFrom" });
-        return next();
-      }
-      const overlap = await hasOverlap(
-        "serverNodePower",
-        node.id,
-        parsedPowerFrom,
-        parsedPowerTo ?? FAR_FUTURE
-      );
-      if (overlap) {
-        res
-          .status(409)
-          .json({ message: "A power entry already exists for the provided time range" });
-        return next();
-      }
       operations.push(
-        prisma.serverNodePower.create({
-          data: {
-            serverNodeId: node.id,
-            Wh: parsedPower,
-            effectiveFrom: parsedPowerFrom,
-            effectiveTo: parsedPowerTo ?? null,
-          },
+        insertTemporalEntry("serverNodePower", node.id, {
+          Wh: parsedPower,
+          effectiveFrom: parsedPowerFromInput ?? new Date(),
+          effectiveTo: parsedPowerTo ?? null,
         })
       );
     }
@@ -409,31 +428,11 @@ export const updateServerNode = async (req, res, next) => {
         res.status(400).json({ message: "uptimeEffectiveTo is invalid" });
         return next();
       }
-      const parsedUptimeFrom = parsedUptimeFromInput ?? new Date();
-      if (parsedUptimeTo && parsedUptimeFrom >= parsedUptimeTo) {
-        res.status(400).json({ message: "uptimeEffectiveTo must be after uptimeEffectiveFrom" });
-        return next();
-      }
-      const overlap = await hasOverlap(
-        "serverNodeUptime",
-        node.id,
-        parsedUptimeFrom,
-        parsedUptimeTo ?? FAR_FUTURE
-      );
-      if (overlap) {
-        res
-          .status(409)
-          .json({ message: "An uptime entry already exists for the provided time range" });
-        return next();
-      }
       operations.push(
-        prisma.serverNodeUptime.create({
-          data: {
-            serverNodeId: node.id,
-            dailyUptimeSeconds: parsedUptime,
-            effectiveFrom: parsedUptimeFrom,
-            effectiveTo: parsedUptimeTo ?? null,
-          },
+        insertTemporalEntry("serverNodeUptime", node.id, {
+          dailyUptimeSeconds: parsedUptime,
+          effectiveFrom: parsedUptimeFromInput ?? new Date(),
+          effectiveTo: parsedUptimeTo ?? null,
         })
       );
     }
@@ -443,7 +442,17 @@ export const updateServerNode = async (req, res, next) => {
       return next();
     }
 
-    await prisma.$transaction(operations);
+    if (operations.length === 0) {
+      res.status(400).json({ message: "Nothing to update" });
+      return next();
+    }
+
+    const results = await Promise.all(operations);
+    const firstError = results.find(r => r?.error);
+    if (firstError?.error) {
+      res.status(409).json({ message: firstError.error });
+      return next();
+    }
 
     const shaped = await fetchNodeWithCurrentValues(node.id, req.user.userId);
     res.json(shaped);
