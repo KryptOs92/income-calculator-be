@@ -21,6 +21,16 @@ const secureOperations = [
   ["/api/server-nodes/{id}", "get"],
   ["/api/server-nodes/{id}", "put"],
   ["/api/server-nodes/{id}", "delete"],
+  ["/api/server-node-powers", "get"],
+  ["/api/server-node-powers", "post"],
+  ["/api/server-node-powers/{id}", "get"],
+  ["/api/server-node-powers/{id}", "put"],
+  ["/api/server-node-powers/{id}", "delete"],
+  ["/api/server-node-uptimes", "get"],
+  ["/api/server-node-uptimes", "post"],
+  ["/api/server-node-uptimes/{id}", "get"],
+  ["/api/server-node-uptimes/{id}", "put"],
+  ["/api/server-node-uptimes/{id}", "delete"],
   ["/api/energy-rates", "get"],
   ["/api/energy-rates", "post"],
   ["/api/energy-rates/{id}", "get"],
@@ -37,6 +47,10 @@ const tagMap = {
   "/api/crypto-inflows/{id}": "Crypto Inflows",
   "/api/server-nodes": "Server Nodes",
   "/api/server-nodes/{id}": "Server Nodes",
+  "/api/server-node-powers": "Server Node Power",
+  "/api/server-node-powers/{id}": "Server Node Power",
+  "/api/server-node-uptimes": "Server Node Uptime",
+  "/api/server-node-uptimes/{id}": "Server Node Uptime",
   "/api/energy-rates": "Energy Rates",
   "/api/energy-rates/{id}": "Energy Rates",
 };
@@ -323,12 +337,28 @@ export const initSwaggerDocs = app => {
             Wh: {
               type: "number",
               example: 1250.5,
-              description: "Energia consumata dal nodo espressa in wattora.",
+              description: "Energia consumata attualmente dal nodo espressa in wattora.",
             },
             dailyUptimeSeconds: {
               type: "integer",
               example: 82800,
-              description: "Tempo di attività giornaliero previsto (in secondi).",
+              description: "Tempo di attività giornaliero attuale previsto (in secondi).",
+            },
+            currentPowerPeriod: {
+              type: "object",
+              nullable: true,
+              properties: {
+                effectiveFrom: { type: "string", format: "date-time" },
+                effectiveTo: { type: "string", format: "date-time", nullable: true },
+              },
+            },
+            currentUptimePeriod: {
+              type: "object",
+              nullable: true,
+              properties: {
+                effectiveFrom: { type: "string", format: "date-time" },
+                effectiveTo: { type: "string", format: "date-time", nullable: true },
+              },
             },
             createdAt: {
               type: "string",
@@ -354,13 +384,117 @@ export const initSwaggerDocs = app => {
         Wh: {
           type: "number",
           example: 1250.5,
-          description: "Energia consumata dal nodo espressa in wattora.",
+          description: "Energia consumata dal nodo espressa in wattora (opzionale). Se non specifichi le date, effectiveFrom sarà ora.",
         },
         dailyUptimeSeconds: {
           type: "integer",
           example: 82800,
-          description: "Tempo di attività giornaliero previsto (in secondi).",
+          description: "Tempo di attività giornaliero previsto (in secondi, opzionale). Se non specifichi le date, effectiveFrom sarà ora.",
         },
+        powerEffectiveFrom: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di inizio validità della potenza (opzionale, default: adesso se Wh presente).",
+        },
+        powerEffectiveTo: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di fine validità della potenza (opzionale).",
+        },
+        uptimeEffectiveFrom: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di inizio validità dell'uptime (opzionale, default: adesso se dailyUptimeSeconds presente).",
+        },
+        uptimeEffectiveTo: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di fine validità dell'uptime (opzionale).",
+        },
+        energyRateCostPerKwh: {
+          type: "string",
+          example: "0.15",
+          description: "Costo energia per kWh (opzionale). Se omesso non viene creata una rate.",
+        },
+        energyRateCurrency: {
+          type: "string",
+          example: "EUR",
+          description: "Valuta del costo energia (opzionale, default DB: EUR).",
+        },
+        energyRateEffectiveFrom: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di inizio validità della tariffa (opzionale, default: adesso se costo presente).",
+        },
+        energyRateEffectiveTo: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "Data/ora di fine validità della tariffa (opzionale).",
+        },
+      };
+
+      const serverNodePowerSchema = ensureSchema(
+        "ServerNodePower",
+        {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 10 },
+            serverNodeId: { type: "integer", example: 42 },
+            Wh: { type: "number", example: 1250.5 },
+            effectiveFrom: { type: "string", format: "date-time" },
+            effectiveTo: { type: "string", format: "date-time", nullable: true },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        { overwrite: true }
+      );
+
+      const serverNodePowerListSchema = ensureSchema(
+        "ServerNodePowerList",
+        { type: "array", items: serverNodePowerSchema },
+        { overwrite: true }
+      );
+
+      const serverNodePowerPayloadProperties = {
+        serverNodeId: { type: "integer", example: 42 },
+        Wh: { type: "number", example: 1250.5 },
+        effectiveFrom: { type: "string", format: "date-time", nullable: true },
+        effectiveTo: { type: "string", format: "date-time", nullable: true },
+      };
+
+      const serverNodeUptimeSchema = ensureSchema(
+        "ServerNodeUptime",
+        {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 12 },
+            serverNodeId: { type: "integer", example: 42 },
+            dailyUptimeSeconds: { type: "integer", example: 82800 },
+            effectiveFrom: { type: "string", format: "date-time" },
+            effectiveTo: { type: "string", format: "date-time", nullable: true },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        { overwrite: true }
+      );
+
+      const serverNodeUptimeListSchema = ensureSchema(
+        "ServerNodeUptimeList",
+        { type: "array", items: serverNodeUptimeSchema },
+        { overwrite: true }
+      );
+
+      const serverNodeUptimePayloadProperties = {
+        serverNodeId: { type: "integer", example: 42 },
+        dailyUptimeSeconds: { type: "integer", example: 82800 },
+        effectiveFrom: { type: "string", format: "date-time", nullable: true },
+        effectiveTo: { type: "string", format: "date-time", nullable: true },
       };
 
       const listCryptosOperation = ensureOperation("/api/cryptos", "get");
@@ -394,11 +528,7 @@ export const initSwaggerDocs = app => {
       setJsonResponse(getServerNodeOperation, "200", serverNodeSchema, "Server node details");
 
       const createServerNodeOperation = ensureOperation("/api/server-nodes", "post");
-      setRequestBody(
-        createServerNodeOperation,
-        ["name", "Wh", "dailyUptimeSeconds"],
-        serverNodePayloadProperties
-      );
+      setRequestBody(createServerNodeOperation, ["name"], serverNodePayloadProperties);
       setJsonResponse(createServerNodeOperation, "201", serverNodeSchema, "Server node created");
 
       const updateServerNodeOperation = ensureOperation("/api/server-nodes/{id}", "put");
@@ -411,6 +541,129 @@ export const initSwaggerDocs = app => {
       deleteServerNodeOperation.responses = deleteServerNodeOperation.responses || {};
       deleteServerNodeOperation.responses["204"] = {
         description: "Server node deleted",
+      };
+
+      const listServerNodePowersOperation = ensureOperation("/api/server-node-powers", "get");
+      listServerNodePowersOperation.parameters = [
+        {
+          name: "serverNodeId",
+          in: "query",
+          required: false,
+          schema: { type: "integer" },
+          description: "Filtra per server node",
+        },
+      ];
+      setJsonResponse(
+        listServerNodePowersOperation,
+        "200",
+        serverNodePowerListSchema,
+        "List of server node power entries"
+      );
+
+      const getServerNodePowerOperation = ensureOperation("/api/server-node-powers/{id}", "get");
+      ensurePathParameter(
+        getServerNodePowerOperation,
+        "id",
+        { type: "integer" },
+        "Power entry identifier"
+      );
+      setJsonResponse(getServerNodePowerOperation, "200", serverNodePowerSchema, "Power entry details");
+
+      const createServerNodePowerOperation = ensureOperation("/api/server-node-powers", "post");
+      setRequestBody(createServerNodePowerOperation, ["serverNodeId", "Wh"], serverNodePowerPayloadProperties);
+      setJsonResponse(createServerNodePowerOperation, "201", serverNodePowerSchema, "Power entry created");
+
+      const updateServerNodePowerOperation = ensureOperation("/api/server-node-powers/{id}", "put");
+      ensurePathParameter(
+        updateServerNodePowerOperation,
+        "id",
+        { type: "integer" },
+        "Power entry identifier"
+      );
+      setRequestBody(updateServerNodePowerOperation, [], serverNodePowerPayloadProperties);
+      setJsonResponse(updateServerNodePowerOperation, "200", serverNodePowerSchema, "Power entry updated");
+
+      const deleteServerNodePowerOperation = ensureOperation("/api/server-node-powers/{id}", "delete");
+      ensurePathParameter(
+        deleteServerNodePowerOperation,
+        "id",
+        { type: "integer" },
+        "Power entry identifier"
+      );
+      deleteServerNodePowerOperation.responses = deleteServerNodePowerOperation.responses || {};
+      deleteServerNodePowerOperation.responses["204"] = {
+        description: "Power entry deleted",
+      };
+
+      const listServerNodeUptimesOperation = ensureOperation("/api/server-node-uptimes", "get");
+      listServerNodeUptimesOperation.parameters = [
+        {
+          name: "serverNodeId",
+          in: "query",
+          required: false,
+          schema: { type: "integer" },
+          description: "Filtra per server node",
+        },
+      ];
+      setJsonResponse(
+        listServerNodeUptimesOperation,
+        "200",
+        serverNodeUptimeListSchema,
+        "List of server node uptime entries"
+      );
+
+      const getServerNodeUptimeOperation = ensureOperation("/api/server-node-uptimes/{id}", "get");
+      ensurePathParameter(
+        getServerNodeUptimeOperation,
+        "id",
+        { type: "integer" },
+        "Uptime entry identifier"
+      );
+      setJsonResponse(
+        getServerNodeUptimeOperation,
+        "200",
+        serverNodeUptimeSchema,
+        "Uptime entry details"
+      );
+
+      const createServerNodeUptimeOperation = ensureOperation("/api/server-node-uptimes", "post");
+      setRequestBody(
+        createServerNodeUptimeOperation,
+        ["serverNodeId", "dailyUptimeSeconds"],
+        serverNodeUptimePayloadProperties
+      );
+      setJsonResponse(
+        createServerNodeUptimeOperation,
+        "201",
+        serverNodeUptimeSchema,
+        "Uptime entry created"
+      );
+
+      const updateServerNodeUptimeOperation = ensureOperation("/api/server-node-uptimes/{id}", "put");
+      ensurePathParameter(
+        updateServerNodeUptimeOperation,
+        "id",
+        { type: "integer" },
+        "Uptime entry identifier"
+      );
+      setRequestBody(updateServerNodeUptimeOperation, [], serverNodeUptimePayloadProperties);
+      setJsonResponse(
+        updateServerNodeUptimeOperation,
+        "200",
+        serverNodeUptimeSchema,
+        "Uptime entry updated"
+      );
+
+      const deleteServerNodeUptimeOperation = ensureOperation("/api/server-node-uptimes/{id}", "delete");
+      ensurePathParameter(
+        deleteServerNodeUptimeOperation,
+        "id",
+        { type: "integer" },
+        "Uptime entry identifier"
+      );
+      deleteServerNodeUptimeOperation.responses = deleteServerNodeUptimeOperation.responses || {};
+      deleteServerNodeUptimeOperation.responses["204"] = {
+        description: "Uptime entry deleted",
       };
 
       secureOperations.forEach(([path, method]) => {

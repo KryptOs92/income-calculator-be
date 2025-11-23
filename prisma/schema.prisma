@@ -71,11 +71,11 @@ model ServerNode {
   id                 Int       @id @default(autoincrement())
   userId             Int
   name               String
-  Wh                 Float
-  dailyUptimeSeconds Int
   createdAt          DateTime  @default(now())
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  powerHistory ServerNodePower[]
+  uptimeHistory ServerNodeUptime[]
   energyRates EnergyRate[]
 }
 
@@ -86,6 +86,32 @@ model EnergyRate {
   currency      String   @default("EUR")
   effectiveFrom DateTime @default(now())
   effectiveTo   DateTime?
+
+  serverNode ServerNode @relation(fields: [serverNodeId], references: [id], onDelete: Cascade)
+
+  @@index([serverNodeId, effectiveFrom])
+}
+
+model ServerNodePower {
+  id            Int       @id @default(autoincrement())
+  serverNodeId  Int
+  Wh            Float
+  effectiveFrom DateTime  @db.DateTime(3)
+  effectiveTo   DateTime? @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @db.DateTime(3)
+
+  serverNode ServerNode @relation(fields: [serverNodeId], references: [id], onDelete: Cascade)
+
+  @@index([serverNodeId, effectiveFrom])
+}
+
+model ServerNodeUptime {
+  id                 Int       @id @default(autoincrement())
+  serverNodeId       Int
+  dailyUptimeSeconds Int
+  effectiveFrom      DateTime  @db.DateTime(3)
+  effectiveTo        DateTime? @db.DateTime(3)
+  createdAt          DateTime  @default(now()) @db.DateTime(3)
 
   serverNode ServerNode @relation(fields: [serverNodeId], references: [id], onDelete: Cascade)
 

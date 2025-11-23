@@ -5,6 +5,13 @@ const parseId = value => {
   return Number.isNaN(id) ? null : id;
 };
 
+const parseDateOrNull = value => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const ensureNodeOwnership = async (serverNodeId, userId) => {
   const node = await prisma.serverNode.findFirst({
     where: { id: serverNodeId, userId },
@@ -86,13 +93,19 @@ export const createEnergyRate = async (req, res, next) => {
       return next();
     }
 
+    const parsedEffectiveTo = parseDateOrNull(effectiveTo);
+    if (effectiveTo !== undefined && parsedEffectiveTo === null) {
+      res.status(400).json({ message: "effectiveTo is invalid" });
+      return next();
+    }
+
     const rate = await prisma.energyRate.create({
       data: {
         serverNodeId: parsedNodeId,
         costPerKwh: costValue,
         currency,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
-        effectiveTo: effectiveTo ? new Date(effectiveTo) : undefined,
+        effectiveTo: parsedEffectiveTo ?? null,
       },
     });
 
@@ -124,6 +137,11 @@ export const updateEnergyRate = async (req, res, next) => {
 
     const { costPerKwh, currency, effectiveFrom, effectiveTo } = req.body;
     const costValue = costPerKwh !== undefined ? costPerKwh.toString() : undefined;
+    const parsedEffectiveTo = parseDateOrNull(effectiveTo);
+    if (effectiveTo !== undefined && parsedEffectiveTo === null) {
+      res.status(400).json({ message: "effectiveTo is invalid" });
+      return next();
+    }
 
     const updated = await prisma.energyRate.update({
       where: { id },
@@ -131,7 +149,7 @@ export const updateEnergyRate = async (req, res, next) => {
         costPerKwh: costValue,
         currency,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
-        effectiveTo: effectiveTo ? new Date(effectiveTo) : undefined,
+        effectiveTo: effectiveTo !== undefined ? parsedEffectiveTo : undefined,
       },
     });
 

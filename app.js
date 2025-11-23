@@ -5,6 +5,8 @@ import cryptoRoutes from "./routes/crypto.routes.js";
 import cryptoAddressRoutes from "./routes/cryptoAddress.routes.js";
 import cryptoInflowRoutes from "./routes/cryptoInflow.routes.js";
 import serverNodeRoutes from "./routes/serverNode.routes.js";
+import serverNodePowerRoutes from "./routes/serverNodePower.routes.js";
+import serverNodeUptimeRoutes from "./routes/serverNodeUptime.routes.js";
 import energyRateRoutes from "./routes/energyRate.routes.js";
 import { authenticate } from "./middlewares/auth.middlewares.js";
 import { initSwaggerDocs, finalizeSwaggerDocs } from "./docs/swagger.js";
@@ -69,6 +71,8 @@ app.use(cryptoRoutes);
 app.use(cryptoAddressRoutes);
 app.use(cryptoInflowRoutes);
 app.use(serverNodeRoutes);
+app.use(serverNodePowerRoutes);
+app.use(serverNodeUptimeRoutes);
 app.use(energyRateRoutes);
 
 app.get("/api-docs", (_req, res) => {
