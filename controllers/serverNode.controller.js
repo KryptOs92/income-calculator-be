@@ -43,7 +43,7 @@ const shapeNodeWithCurrentValues = node => {
 const fetchNodeWithCurrentValues = async (id, userId) => {
   const now = new Date();
   const node = await prisma.serverNode.findFirst({
-    where: { id, userId },
+    where: { id, userId, deletedAt: null },
     include: {
       energyRates: true,
       powerHistory: currentTemporalInclude(now),
@@ -54,7 +54,9 @@ const fetchNodeWithCurrentValues = async (id, userId) => {
 };
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
-  return prisma.serverNode.findFirst({ where: { id: serverNodeId, userId } });
+  return prisma.serverNode.findFirst({
+    where: { id: serverNodeId, userId, deletedAt: null },
+  });
 };
 
 const findConflictAt = (modelName, serverNodeId, effectiveFrom) =>
@@ -120,7 +122,7 @@ export const listServerNodes = async (req, res, next) => {
   try {
     const now = new Date();
     const nodes = await prisma.serverNode.findMany({
-      where: { userId: req.user.userId },
+      where: { userId: req.user.userId, deletedAt: null },
       include: {
         energyRates: true,
         powerHistory: currentTemporalInclude(now),
@@ -358,7 +360,7 @@ export const updateServerNode = async (req, res, next) => {
     }
 
     const node = await prisma.serverNode.findFirst({
-      where: { id, userId: req.user.userId },
+      where: { id, userId: req.user.userId, deletedAt: null },
     });
 
     if (!node) {
@@ -473,7 +475,7 @@ export const deleteServerNode = async (req, res, next) => {
     }
 
     const node = await prisma.serverNode.findFirst({
-      where: { id, userId: req.user.userId },
+      where: { id, userId: req.user.userId, deletedAt: null },
     });
 
     if (!node) {
@@ -481,7 +483,10 @@ export const deleteServerNode = async (req, res, next) => {
       return next();
     }
 
-    await prisma.serverNode.delete({ where: { id } });
+    await prisma.serverNode.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     res.status(204).send();
     return next();
   } catch (err) {

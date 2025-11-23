@@ -14,7 +14,9 @@ const parseDate = value => {
 const minusOneMillisecond = date => new Date(date.getTime() - 1);
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
-  return prisma.serverNode.findFirst({ where: { id: serverNodeId, userId } });
+  return prisma.serverNode.findFirst({
+    where: { id: serverNodeId, userId, deletedAt: null },
+  });
 };
 
 const findConflictAt = (serverNodeId, effectiveFrom, excludeId) =>
@@ -55,6 +57,7 @@ export const listServerNodeUptimes = async (req, res, next) => {
       where: {
         serverNode: {
           userId,
+          deletedAt: null,
           ...(serverNodeId !== null ? { id: serverNodeId } : {}),
         },
       },
@@ -79,7 +82,7 @@ export const getServerNodeUptime = async (req, res, next) => {
     }
 
     const entry = await prisma.serverNodeUptime.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!entry) {
@@ -178,7 +181,7 @@ export const updateServerNodeUptime = async (req, res, next) => {
     }
 
     const existing = await prisma.serverNodeUptime.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!existing) {
@@ -266,7 +269,7 @@ export const deleteServerNodeUptime = async (req, res, next) => {
     }
 
     const existing = await prisma.serverNodeUptime.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!existing) {

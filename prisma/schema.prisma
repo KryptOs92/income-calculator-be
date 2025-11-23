@@ -72,6 +72,7 @@ model ServerNode {
   userId             Int
   name               String
   createdAt          DateTime  @default(now())
+  deletedAt          DateTime?
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   powerHistory ServerNodePower[]

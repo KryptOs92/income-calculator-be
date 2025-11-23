@@ -14,7 +14,7 @@ const parseDateOrNull = value => {
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
   const node = await prisma.serverNode.findFirst({
-    where: { id: serverNodeId, userId },
+    where: { id: serverNodeId, userId, deletedAt: null },
   });
   return node;
 };
@@ -36,6 +36,7 @@ export const listEnergyRates = async (req, res, next) => {
       where: {
         serverNode: {
           userId,
+          deletedAt: null,
           ...(serverNodeId !== null ? { id: serverNodeId } : {}),
         },
       },
@@ -60,7 +61,7 @@ export const getEnergyRate = async (req, res, next) => {
     }
 
     const rate = await prisma.energyRate.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!rate) {
@@ -127,7 +128,7 @@ export const updateEnergyRate = async (req, res, next) => {
     }
 
     const rate = await prisma.energyRate.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!rate) {
@@ -171,7 +172,7 @@ export const deleteEnergyRate = async (req, res, next) => {
     }
 
     const rate = await prisma.energyRate.findFirst({
-      where: { id, serverNode: { userId: req.user.userId } },
+      where: { id, serverNode: { userId: req.user.userId, deletedAt: null } },
     });
 
     if (!rate) {
