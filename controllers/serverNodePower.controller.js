@@ -11,7 +11,22 @@ const parseDate = value => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const minusOneMillisecond = date => new Date(date.getTime() - 1);
+const buildPagination = (page, perPage) => {
+  if (page === undefined && perPage === undefined) return null;
+  const parsedPage = Number(page);
+  const parsedPerPage = Number(perPage);
+  if (
+    !Number.isInteger(parsedPage) ||
+    parsedPage <= 0 ||
+    !Number.isInteger(parsedPerPage) ||
+    parsedPerPage <= 0
+  ) {
+    return "invalid";
+  }
+  return { skip: (parsedPage - 1) * parsedPerPage, take: parsedPerPage };
+};
+
+const minusOneDay = date => new Date(date.getTime() - 24 * 60 * 60 * 1000);
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
   return prisma.serverNode.findFirst({
@@ -45,6 +60,12 @@ export const listServerNodePowers = async (req, res, next) => {
     const serverNodeId = parseId(req.query.serverNodeId);
     const userId = req.user.userId;
 
+    const pagination = buildPagination(req.query.page, req.query.perPage);
+    if (pagination === "invalid") {
+      res.status(400).json({ message: "page and perPage must be positive integers" });
+      return next();
+    }
+
     if (serverNodeId !== null) {
       const owns = await ensureNodeOwnership(serverNodeId, userId);
       if (!owns) {
@@ -61,7 +82,8 @@ export const listServerNodePowers = async (req, res, next) => {
           ...(serverNodeId !== null ? { id: serverNodeId } : {}),
         },
       },
-      orderBy: { effectiveFrom: "desc" },
+      orderBy: [{ effectiveTo: "desc" }, { effectiveFrom: "desc" }],
+      ...(pagination ?? {}),
     });
 
     res.json(entries);
@@ -141,7 +163,7 @@ export const createServerNodePower = async (req, res, next) => {
         }
         await prisma.serverNodePower.update({
           where: { id: conflict.id },
-          data: { effectiveTo: minusOneMillisecond(from) },
+          data: { effectiveTo: minusOneDay(from) },
         });
       }
     } else {
@@ -231,7 +253,7 @@ export const updateServerNodePower = async (req, res, next) => {
         }
         await prisma.serverNodePower.update({
           where: { id: conflict.id },
-          data: { effectiveTo: minusOneMillisecond(from) },
+          data: { effectiveTo: minusOneDay(from) },
         });
       }
     } else {

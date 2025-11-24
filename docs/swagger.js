@@ -83,6 +83,22 @@ export const initSwaggerDocs = app => {
         spec.paths[path][method] = spec.paths[path][method] || { responses: {} };
         return spec.paths[path][method];
       };
+      const paginationParameters = [
+        {
+          name: "page",
+          in: "query",
+          required: false,
+          schema: { type: "integer", minimum: 1 },
+          description: "Numero pagina (>=1). Se omesso restituisce tutti i record.",
+        },
+        {
+          name: "perPage",
+          in: "query",
+          required: false,
+          schema: { type: "integer", minimum: 1 },
+          description: "Elementi per pagina (>=1). Richiesto se page è specificato.",
+        },
+      ];
 
       const ensureSchema = (name, schema, { overwrite = false } = {}) => {
         spec.components.schemas = spec.components.schemas || {};
@@ -508,6 +524,36 @@ export const initSwaggerDocs = app => {
         effectiveTo: { type: "string", format: "date-time", nullable: true },
       };
 
+      const energyRateSchema = ensureSchema(
+        "EnergyRate",
+        {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 15 },
+            serverNodeId: { type: "integer", example: 42 },
+            costPerKwh: { type: "string", example: "0.15" },
+            currency: { type: "string", example: "EUR" },
+            effectiveFrom: { type: "string", format: "date-time" },
+            effectiveTo: { type: "string", format: "date-time", nullable: true },
+          },
+        },
+        { overwrite: true }
+      );
+
+      const energyRateListSchema = ensureSchema(
+        "EnergyRateList",
+        { type: "array", items: energyRateSchema },
+        { overwrite: true }
+      );
+
+      const energyRatePayloadProperties = {
+        serverNodeId: { type: "integer", example: 42 },
+        costPerKwh: { type: "string", example: "0.15" },
+        currency: { type: "string", example: "EUR" },
+        effectiveFrom: { type: "string", format: "date-time", nullable: true },
+        effectiveTo: { type: "string", format: "date-time", nullable: true },
+      };
+
       const listCryptosOperation = ensureOperation("/api/cryptos", "get");
       setJsonResponse(listCryptosOperation, "200", cryptoListSchema, "List of cryptocurrencies");
 
@@ -583,12 +629,13 @@ export const initSwaggerDocs = app => {
           schema: { type: "integer" },
           description: "Filtra per server node",
         },
+        ...paginationParameters,
       ];
       setJsonResponse(
         listServerNodePowersOperation,
         "200",
         serverNodePowerListSchema,
-        "List of server node power entries"
+        "List of server node power entries (ordinati per effectiveTo desc, poi effectiveFrom desc)"
       );
 
       const getServerNodePowerOperation = ensureOperation("/api/server-node-powers/{id}", "get");
@@ -635,13 +682,52 @@ export const initSwaggerDocs = app => {
           schema: { type: "integer" },
           description: "Filtra per server node",
         },
+        ...paginationParameters,
       ];
       setJsonResponse(
         listServerNodeUptimesOperation,
         "200",
         serverNodeUptimeListSchema,
-        "List of server node uptime entries"
+        "List of server node uptime entries (ordinati per effectiveTo desc, poi effectiveFrom desc)"
       );
+
+      const listEnergyRatesOperation = ensureOperation("/api/energy-rates", "get");
+      listEnergyRatesOperation.parameters = [
+        {
+          name: "serverNodeId",
+          in: "query",
+          required: false,
+          schema: { type: "integer" },
+          description: "Filtra per server node",
+        },
+        ...paginationParameters,
+      ];
+      setJsonResponse(
+        listEnergyRatesOperation,
+        "200",
+        energyRateListSchema,
+        "List of energy rates (ordinate per effectiveTo desc, poi effectiveFrom desc)"
+      );
+
+      const getEnergyRateOperation = ensureOperation("/api/energy-rates/{id}", "get");
+      ensurePathParameter(getEnergyRateOperation, "id", { type: "integer" }, "Energy rate identifier");
+      setJsonResponse(getEnergyRateOperation, "200", energyRateSchema, "Energy rate details");
+
+      const createEnergyRateOperation = ensureOperation("/api/energy-rates", "post");
+      setRequestBody(createEnergyRateOperation, ["serverNodeId", "costPerKwh"], energyRatePayloadProperties);
+      setJsonResponse(createEnergyRateOperation, "201", energyRateSchema, "Energy rate created");
+
+      const updateEnergyRateOperation = ensureOperation("/api/energy-rates/{id}", "put");
+      ensurePathParameter(updateEnergyRateOperation, "id", { type: "integer" }, "Energy rate identifier");
+      setRequestBody(updateEnergyRateOperation, [], energyRatePayloadProperties);
+      setJsonResponse(updateEnergyRateOperation, "200", energyRateSchema, "Energy rate updated");
+
+      const deleteEnergyRateOperation = ensureOperation("/api/energy-rates/{id}", "delete");
+      ensurePathParameter(deleteEnergyRateOperation, "id", { type: "integer" }, "Energy rate identifier");
+      deleteEnergyRateOperation.responses = deleteEnergyRateOperation.responses || {};
+      deleteEnergyRateOperation.responses["204"] = {
+        description: "Energy rate deleted",
+      };
 
       const getServerNodeUptimeOperation = ensureOperation("/api/server-node-uptimes/{id}", "get");
       ensurePathParameter(

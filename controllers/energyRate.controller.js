@@ -5,12 +5,28 @@ const parseId = value => {
   return Number.isNaN(id) ? null : id;
 };
 
-const parseDateOrNull = value => {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
+const parseDate = value => {
+  if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
+
+const buildPagination = (page, perPage) => {
+  if (page === undefined && perPage === undefined) return null;
+  const parsedPage = Number(page);
+  const parsedPerPage = Number(perPage);
+  if (
+    !Number.isInteger(parsedPage) ||
+    parsedPage <= 0 ||
+    !Number.isInteger(parsedPerPage) ||
+    parsedPerPage <= 0
+  ) {
+    return "invalid";
+  }
+  return { skip: (parsedPage - 1) * parsedPerPage, take: parsedPerPage };
+};
+
+const minusOneDay = date => new Date(date.getTime() - 24 * 60 * 60 * 1000);
 
 const ensureNodeOwnership = async (serverNodeId, userId) => {
   const node = await prisma.serverNode.findFirst({
@@ -19,10 +35,37 @@ const ensureNodeOwnership = async (serverNodeId, userId) => {
   return node;
 };
 
+const findConflictAt = (serverNodeId, effectiveFrom, excludeId) =>
+  prisma.energyRate.findFirst({
+    where: {
+      serverNodeId,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      effectiveFrom: { lte: effectiveFrom },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: effectiveFrom } }],
+    },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+const hasRangeOverlap = (serverNodeId, effectiveFrom, effectiveTo, excludeId) =>
+  prisma.energyRate.findFirst({
+    where: {
+      serverNodeId,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      effectiveFrom: { lt: effectiveTo },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
+    },
+  });
+
 export const listEnergyRates = async (req, res, next) => {
   try {
     const serverNodeId = parseId(req.query.serverNodeId);
     const userId = req.user.userId;
+
+    const pagination = buildPagination(req.query.page, req.query.perPage);
+    if (pagination === "invalid") {
+      res.status(400).json({ message: "page and perPage must be positive integers" });
+      return next();
+    }
 
     if (serverNodeId !== null) {
       const owns = await ensureNodeOwnership(serverNodeId, userId);
@@ -40,7 +83,8 @@ export const listEnergyRates = async (req, res, next) => {
           ...(serverNodeId !== null ? { id: serverNodeId } : {}),
         },
       },
-      orderBy: { effectiveFrom: "desc" },
+      orderBy: [{ effectiveTo: "desc" }, { effectiveFrom: "desc" }],
+      ...(pagination ?? {}),
     });
 
     res.json(rates);
@@ -94,10 +138,42 @@ export const createEnergyRate = async (req, res, next) => {
       return next();
     }
 
-    const parsedEffectiveTo = parseDateOrNull(effectiveTo);
-    if (effectiveTo !== undefined && parsedEffectiveTo === null) {
+    const parsedFromInput = parseDate(effectiveFrom);
+    const parsedTo = parseDate(effectiveTo);
+    if (effectiveFrom !== undefined && !parsedFromInput) {
+      res.status(400).json({ message: "effectiveFrom is invalid" });
+      return next();
+    }
+    if (effectiveTo !== undefined && effectiveTo !== null && !parsedTo) {
       res.status(400).json({ message: "effectiveTo is invalid" });
       return next();
+    }
+
+    const from = parsedFromInput ?? new Date();
+    const to = parsedTo ?? null;
+    if (to && from >= to) {
+      res.status(400).json({ message: "effectiveTo must be after effectiveFrom" });
+      return next();
+    }
+
+    if (to === null) {
+      const conflict = await findConflictAt(parsedNodeId, from);
+      if (conflict) {
+        if (from <= conflict.effectiveFrom) {
+          res.status(409).json({ message: "effectiveFrom must be after the current open period start" });
+          return next();
+        }
+        await prisma.energyRate.update({
+          where: { id: conflict.id },
+          data: { effectiveTo: minusOneDay(from) },
+        });
+      }
+    } else {
+      const overlap = await hasRangeOverlap(parsedNodeId, from, to);
+      if (overlap) {
+        res.status(409).json({ message: "An energy rate already exists for the provided time range" });
+        return next();
+      }
     }
 
     const rate = await prisma.energyRate.create({
@@ -105,8 +181,8 @@ export const createEnergyRate = async (req, res, next) => {
         serverNodeId: parsedNodeId,
         costPerKwh: costValue,
         currency,
-        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
-        effectiveTo: parsedEffectiveTo ?? null,
+        effectiveFrom: from,
+        effectiveTo: to,
       },
     });
 
