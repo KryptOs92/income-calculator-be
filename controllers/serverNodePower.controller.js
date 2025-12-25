@@ -82,7 +82,11 @@ export const listServerNodePowers = async (req, res, next) => {
           ...(serverNodeId !== null ? { id: serverNodeId } : {}),
         },
       },
-      orderBy: [{ effectiveTo: "desc" }, { effectiveFrom: "desc" }],
+      orderBy: [
+        { effectiveFrom: "desc" },
+        // For equal starts, put more recent end dates first; keep nulls last
+        { effectiveTo: { sort: "desc", nulls: "last" } },
+      ],
       ...(pagination ?? {}),
     });
 

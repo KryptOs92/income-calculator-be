@@ -635,7 +635,7 @@ export const initSwaggerDocs = app => {
         listServerNodePowersOperation,
         "200",
         serverNodePowerListSchema,
-        "List of server node power entries (ordinati per effectiveTo desc, poi effectiveFrom desc)"
+        "List of server node power entries (ordinati dal più recente: effectiveFrom desc, poi effectiveTo desc/nulls last)"
       );
 
       const getServerNodePowerOperation = ensureOperation("/api/server-node-powers/{id}", "get");
