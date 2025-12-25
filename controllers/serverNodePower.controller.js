@@ -55,6 +55,16 @@ const hasRangeOverlap = (serverNodeId, effectiveFrom, effectiveTo, excludeId) =>
     },
   });
 
+// For open-ended intervals (effectiveTo = null) ensure nothing overlaps from that start onward
+const hasOverlapFrom = (serverNodeId, effectiveFrom, excludeId) =>
+  prisma.serverNodePower.findFirst({
+    where: {
+      serverNodeId,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }],
+    },
+  });
+
 export const listServerNodePowers = async (req, res, next) => {
   try {
     const serverNodeId = parseId(req.query.serverNodeId);
@@ -170,6 +180,12 @@ export const createServerNodePower = async (req, res, next) => {
           data: { effectiveTo: minusOneDay(from) },
         });
       }
+
+      const overlapFrom = await hasOverlapFrom(parsedNodeId, from);
+      if (overlapFrom) {
+        res.status(409).json({ message: "A power entry already exists for the provided time range" });
+        return next();
+      }
     } else {
       const overlap = await hasRangeOverlap(parsedNodeId, from, to);
       if (overlap) {
@@ -259,6 +275,12 @@ export const updateServerNodePower = async (req, res, next) => {
           where: { id: conflict.id },
           data: { effectiveTo: minusOneDay(from) },
         });
+      }
+
+      const overlapFrom = await hasOverlapFrom(existing.serverNodeId, from, existing.id);
+      if (overlapFrom) {
+        res.status(409).json({ message: "A power entry already exists for the provided time range" });
+        return next();
       }
     } else {
       const overlap = await hasRangeOverlap(existing.serverNodeId, from, to, existing.id);
